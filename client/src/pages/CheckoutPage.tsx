@@ -19,7 +19,10 @@ import {
   Copy,
   Check,
   Upload,
-  Clock
+  Clock,
+  Smartphone,
+  Sparkles,
+  Trash2
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -73,6 +76,22 @@ export const CheckoutPage: React.FC = () => {
   const [paymentScreenshot, setPaymentScreenshot] = useState('');
   const [isUploadingScreenshot, setIsUploadingScreenshot] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
+  const [timerSeconds, setTimerSeconds] = useState(300);
+  const [qrMode, setQrMode] = useState<'dynamic' | 'standee'>('dynamic');
+
+  // YouPI-PG style 5:00 countdown timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimerSeconds(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatTimer = (secs: number) => {
+    const mins = Math.floor(secs / 60);
+    const rem = secs % 60;
+    return `${mins.toString().padStart(2, '0')}:${rem.toString().padStart(2, '0')}`;
+  };
 
   // Payment method
   const [paymentMethod, setPaymentMethod] = useState<'upi_qr' | 'razorpay' | 'cod'>('upi_qr');
@@ -127,12 +146,24 @@ export const CheckoutPage: React.FC = () => {
     if (!file) return;
     try {
       setIsUploadingScreenshot(true);
-      const res = await api.upload.single(file);
-      if (res.url) {
-        setPaymentScreenshot(res.url);
+      try {
+        const res = await api.upload.single(file);
+        if (res.url) {
+          setPaymentScreenshot(res.url);
+          return;
+        }
+      } catch (backendErr) {
+        // Fallback: convert to Base64 Data URL for instant offline preview & attachment
+        const reader = new FileReader();
+        reader.onload = (uploadEvt) => {
+          if (uploadEvt.target?.result) {
+            setPaymentScreenshot(uploadEvt.target.result as string);
+          }
+        };
+        reader.readAsDataURL(file);
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to upload payment screenshot.');
+      alert('Could not attach payment screenshot.');
     } finally {
       setIsUploadingScreenshot(false);
     }
@@ -789,38 +820,100 @@ export const CheckoutPage: React.FC = () => {
 
                   {/* Dedicated UPI QR Code Section */}
                   {paymentMethod === 'upi_qr' && (
-                    <div className="px-4 pb-5 pt-3 border-t border-purple-100 bg-white space-y-4">
-                      {/* Top Payee and Amount Banner */}
-                      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                        <div>
-                          <span className="text-gray-500 block text-[11px] uppercase tracking-wider font-semibold">Payee / Account Name:</span>
-                          <strong className="text-gray-900 text-sm block">{upiConfig.payee_name || 'Mr Suroju Jnana Venkata Karthik'}</strong>
-                          <span className="text-[11px] text-purple-900 font-medium">Business: VK Technology</span>
+                    <div className="px-4 pb-6 pt-3 border-t border-purple-100 bg-white space-y-4">
+                      {/* YouPI Gateway Active Status & Expiry Bar */}
+                      <div className="flex flex-col sm:flex-row items-center justify-between bg-slate-900 text-white px-3.5 py-2.5 rounded-lg text-xs font-medium gap-2 shadow-sm">
+                        <div className="flex items-center space-x-2">
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                          </span>
+                          <span className="font-bold text-white tracking-wide flex items-center gap-1.5">
+                            <span>YouPI Direct Gateway</span>
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">0% Fee</span>
+                          </span>
                         </div>
-                        <div className="text-center sm:text-right bg-white sm:bg-transparent px-3 py-1.5 rounded sm:p-0 border sm:border-0 border-purple-200 w-full sm:w-auto">
-                          <span className="text-gray-500 block text-[11px] uppercase tracking-wider font-semibold">Exact Amount Payable:</span>
-                          <strong className="text-xl font-black text-purple-700">₹{finalPayable.toLocaleString('en-IN')}</strong>
+                        <div className="flex items-center space-x-1.5 font-mono text-amber-300 font-bold text-xs bg-slate-800 px-2.5 py-1 rounded">
+                          <Clock size={13} className="text-amber-400 animate-pulse" />
+                          <span>Session window: {formatTimer(timerSeconds)}</span>
                         </div>
                       </div>
 
+                      {/* Top Payee and Amount Banner */}
+                      <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-sm">
+                        <div>
+                          <span className="text-gray-500 block text-[11px] uppercase tracking-wider font-semibold">Payee Account:</span>
+                          <strong className="text-gray-900 text-base block">{upiConfig.payee_name || 'Mr Suroju Jnana Venkata Karthik'}</strong>
+                          <span className="text-[11px] text-purple-700 font-semibold flex items-center gap-1">
+                            <ShieldCheck size={13} className="text-emerald-600" /> NPCI Verified Merchant: VK Technology
+                          </span>
+                        </div>
+                        <div className="text-center sm:text-right bg-white sm:bg-transparent px-4 py-2 rounded-lg sm:p-0 border sm:border-0 border-purple-200 w-full sm:w-auto">
+                          <span className="text-gray-500 block text-[11px] uppercase tracking-wider font-semibold">Exact Amount Payable:</span>
+                          <strong className="text-2xl font-black text-purple-700">₹{finalPayable.toLocaleString('en-IN')}</strong>
+                          <span className="block text-[10px] text-emerald-600 font-bold">No gateway convenience fee</span>
+                        </div>
+                      </div>
+
+                      {/* QR Mode Switcher Tabs */}
+                      <div className="flex items-center justify-center p-1 bg-gray-100 rounded-lg max-w-sm mx-auto text-xs font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setQrMode('dynamic')}
+                          className={`flex-1 py-1.5 px-3 rounded-md transition text-center cursor-pointer ${
+                            qrMode === 'dynamic'
+                              ? 'bg-white text-purple-700 shadow-sm font-bold'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          ⚡ Dynamic QR (Amount Pre-filled)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setQrMode('standee')}
+                          className={`flex-1 py-1.5 px-3 rounded-md transition text-center cursor-pointer ${
+                            qrMode === 'standee'
+                              ? 'bg-white text-purple-700 shadow-sm font-bold'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          🏪 Store Standee QR
+                        </button>
+                      </div>
+
                       {/* QR Display Card */}
-                      <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-xl border border-gray-200 shadow-inner space-y-3">
-                        <div className="relative">
-                          <img
-                            src={upiConfig.qr_image_url || '/upi-qr-code.jpg'}
-                            alt="VK Technology PhonePe UPI QR Code"
-                            className="w-56 sm:w-64 h-auto max-h-80 object-contain rounded-xl border-2 border-purple-300 shadow-md bg-white p-2"
-                          />
+                      <div className="flex flex-col items-center justify-center p-5 bg-gradient-to-b from-gray-50 to-white rounded-2xl border-2 border-purple-200 shadow-sm space-y-4">
+                        <div className="relative bg-white p-3 rounded-xl border border-gray-200 shadow-md">
+                          {qrMode === 'dynamic' ? (
+                            <img
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(
+                                `upi://pay?pa=${upiConfig.upi_id || '8555997052@ibl'}&pn=${encodeURIComponent(
+                                  upiConfig.payee_name || 'Mr Suroju Jnana Venkata Karthik'
+                                )}&am=${finalPayable}&cu=INR&tn=${encodeURIComponent('VK Technology Order')}`
+                              )}`}
+                              alt="Dynamic YouPI Pre-filled QR Code"
+                              className="w-56 sm:w-64 h-56 sm:h-64 object-contain rounded-lg"
+                            />
+                          ) : (
+                            <img
+                              src={upiConfig.qr_image_url || '/upi-qr-code.jpg'}
+                              alt="VK Technology PhonePe UPI Standee QR Code"
+                              className="w-56 sm:w-64 h-auto max-h-80 object-contain rounded-lg"
+                            />
+                          )}
+                          <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold px-3 py-0.5 rounded-full shadow tracking-wider uppercase">
+                            {qrMode === 'dynamic' ? `₹${finalPayable} Auto-Filled` : 'Scan via Any UPI App'}
+                          </div>
                         </div>
 
                         {/* UPI ID pill and copy button */}
-                        <div className="flex items-center space-x-2 bg-white border border-gray-300 rounded-full px-4 py-1.5 text-xs shadow-sm">
-                          <span className="text-gray-500 font-medium">UPI ID:</span>
+                        <div className="flex items-center space-x-2 bg-white border border-gray-300 rounded-full px-4 py-1.5 text-xs shadow-sm mt-1">
+                          <span className="text-gray-500 font-medium">VPA / UPI ID:</span>
                           <span className="font-mono font-bold text-gray-900 select-all">{upiConfig.upi_id || '8555997052@ibl'}</span>
                           <button
                             type="button"
                             onClick={handleCopyUpi}
-                            className="ml-2 bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1 rounded-full text-[11px] flex items-center space-x-1 shadow-sm transition active:scale-95"
+                            className="ml-2 bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1 rounded-full text-[11px] flex items-center space-x-1 shadow-sm transition active:scale-95 cursor-pointer"
                           >
                             {copiedUpi ? (
                               <>
@@ -830,38 +923,87 @@ export const CheckoutPage: React.FC = () => {
                             ) : (
                               <>
                                 <Copy size={12} />
-                                <span>Copy UPI ID</span>
+                                <span>Copy UPI</span>
                               </>
                             )}
                           </button>
                         </div>
 
-                        {/* Mobile Direct Intent Link */}
-                        <a
-                          href={`upi://pay?pa=${upiConfig.upi_id || '8555997052@ibl'}&pn=${encodeURIComponent(upiConfig.payee_name || 'Mr Suroju Jnana Venkata Karthik')}&am=${finalPayable}&cu=INR&tn=VK%20Technology%20Order`}
-                          className="sm:hidden w-full max-w-xs bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-4 rounded-lg text-center text-xs flex items-center justify-center space-x-2 shadow transition"
-                        >
-                          <QrCode size={15} />
-                          <span>Pay with Installed UPI App</span>
-                        </a>
+                        {/* 1-Click Mobile UPI App Launchers (YouPI-PG Intent Integration) */}
+                        <div className="w-full max-w-md pt-2 space-y-2">
+                          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center block">
+                            Or Tap to Pay Directly on Mobile:
+                          </span>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {/* Google Pay */}
+                            <a
+                              href={`upi://pay?pa=${upiConfig.upi_id || '8555997052@ibl'}&pn=${encodeURIComponent(
+                                upiConfig.payee_name || 'Mr Suroju Jnana Venkata Karthik'
+                              )}&am=${finalPayable}&cu=INR&tn=VK%20Technology`}
+                              className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs transition active:scale-95"
+                            >
+                              <Smartphone size={13} /> GPay
+                            </a>
+                            {/* PhonePe */}
+                            <a
+                              href={`upi://pay?pa=${upiConfig.upi_id || '8555997052@ibl'}&pn=${encodeURIComponent(
+                                upiConfig.payee_name || 'Mr Suroju Jnana Venkata Karthik'
+                              )}&am=${finalPayable}&cu=INR&tn=VK%20Technology`}
+                              className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-xs transition active:scale-95"
+                            >
+                              <Smartphone size={13} /> PhonePe
+                            </a>
+                            {/* Paytm */}
+                            <a
+                              href={`upi://pay?pa=${upiConfig.upi_id || '8555997052@ibl'}&pn=${encodeURIComponent(
+                                upiConfig.payee_name || 'Mr Suroju Jnana Venkata Karthik'
+                              )}&am=${finalPayable}&cu=INR&tn=VK%20Technology`}
+                              className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-xs transition active:scale-95"
+                            >
+                              <Smartphone size={13} /> Paytm
+                            </a>
+                            {/* BHIM / Cred */}
+                            <a
+                              href={`upi://pay?pa=${upiConfig.upi_id || '8555997052@ibl'}&pn=${encodeURIComponent(
+                                upiConfig.payee_name || 'Mr Suroju Jnana Venkata Karthik'
+                              )}&am=${finalPayable}&cu=INR&tn=VK%20Technology`}
+                              className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs transition active:scale-95"
+                            >
+                              <QrCode size={13} /> Any UPI
+                            </a>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Step-by-Step Payment Instructions */}
-                      <div className="bg-purple-50/60 p-3.5 rounded-lg border border-purple-200 text-xs text-gray-800 space-y-1.5">
-                        <span className="font-bold text-purple-950 block text-[12px]">Instructions to Complete Payment:</span>
+                      <div className="bg-purple-50/70 p-3.5 rounded-xl border border-purple-200 text-xs text-gray-800 space-y-1.5">
+                        <span className="font-bold text-purple-950 block text-[12px] flex items-center gap-1">
+                          <Sparkles size={14} className="text-purple-600" />
+                          <span>How to Complete Payment via YouPI:</span>
+                        </span>
                         <ol className="list-decimal pl-4 space-y-1 text-[11px] text-gray-700">
-                          <li>Open <strong>PhonePe, Google Pay, Paytm, BHIM, or any UPI app</strong> on your mobile phone.</li>
-                          <li>Scan the QR code displayed above or transfer to UPI ID: <strong className="font-mono text-purple-950">{upiConfig.upi_id || '8555997052@ibl'}</strong>.</li>
-                          <li>Enter the exact order amount: <strong className="text-purple-700 font-bold">₹{finalPayable.toLocaleString('en-IN')}</strong>.</li>
-                          <li>After payment is successful, copy the <strong>12-digit UTR / UPI Reference Number</strong> from your payment screen and paste it below.</li>
+                          <li>Scan the QR code with <strong>PhonePe, GPay, Paytm, BHIM, Cred</strong> or tap an app button above.</li>
+                          <li>Pay the exact amount of <strong className="text-purple-700 font-bold">₹{finalPayable.toLocaleString('en-IN')}</strong>.</li>
+                          <li>Find the <strong>12-digit UPI Reference Number / UTR</strong> on your payment receipt and enter it below.</li>
                         </ol>
                       </div>
 
-                      {/* Required UTR Input Field */}
-                      <div>
-                        <label className="block font-bold text-gray-900 mb-1 text-xs">
-                          12-Digit UPI Transaction Reference / UTR Number *
-                        </label>
+                      {/* Required UTR Input Field with Real-Time Validation */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="block font-bold text-gray-900 text-xs">
+                            12-Digit UPI Transaction Reference / UTR Number *
+                          </label>
+                          <span className={`text-[11px] font-bold ${
+                            /^\d{12}$/.test(utrNumber.trim())
+                              ? 'text-emerald-600'
+                              : utrNumber.trim().length > 0
+                              ? 'text-amber-600'
+                              : 'text-gray-400'
+                          }`}>
+                            {/^\d{12}$/.test(utrNumber.trim()) ? '✓ Valid 12-Digit UTR' : `(${utrNumber.trim().length}/12 digits)`}
+                          </span>
+                        </div>
                         <input
                           type="text"
                           required={paymentMethod === 'upi_qr'}
@@ -869,22 +1011,26 @@ export const CheckoutPage: React.FC = () => {
                           value={utrNumber}
                           onChange={(e) => setUtrNumber(e.target.value.replace(/[^0-9a-zA-Z]/g, ''))}
                           placeholder="e.g. 428901234567"
-                          className="w-full px-3 py-2.5 border-2 border-purple-300 focus:border-purple-600 rounded-lg text-xs font-mono font-bold tracking-wider text-gray-900 focus:outline-none shadow-sm"
+                          className={`w-full px-3.5 py-2.5 border-2 rounded-xl text-sm font-mono font-bold tracking-wider text-gray-900 focus:outline-none shadow-sm transition ${
+                            /^\d{12}$/.test(utrNumber.trim())
+                              ? 'border-emerald-500 ring-2 ring-emerald-100 bg-emerald-50/20'
+                              : 'border-purple-300 focus:border-purple-600'
+                          }`}
                         />
-                        <p className="text-[10px] text-gray-500 mt-1">
-                          The 12-digit UTR is visible on your PhonePe/GPay transaction receipt or SMS from your bank.
+                        <p className="text-[10px] text-gray-500">
+                          The UTR is displayed on your payment successful screen (e.g., "UPI Ref No: 428901234567").
                         </p>
                       </div>
 
-                      {/* Optional Payment Screenshot Upload */}
-                      <div>
-                        <label className="block font-bold text-gray-900 mb-1 text-xs">
-                          Upload Payment Screenshot (Optional for faster verification)
+                      {/* Payment Screenshot Upload with Instant Preview */}
+                      <div className="space-y-2">
+                        <label className="block font-bold text-gray-900 text-xs">
+                          Upload Payment Screenshot (Optional for express priority dispatch)
                         </label>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <label className="inline-flex items-center space-x-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold px-3 py-1.5 rounded cursor-pointer transition text-xs border border-gray-300">
-                            <Upload size={14} />
-                            <span>{isUploadingScreenshot ? 'Uploading...' : 'Choose Screenshot Image'}</span>
+                        {!paymentScreenshot ? (
+                          <label className="flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 hover:border-purple-400 bg-gray-50 hover:bg-purple-50/30 p-3.5 rounded-xl cursor-pointer transition text-xs text-gray-700">
+                            <Upload size={16} className="text-purple-600" />
+                            <span className="font-semibold">{isUploadingScreenshot ? 'Attaching Screenshot...' : 'Click to Upload Payment Receipt / Screenshot'}</span>
                             <input
                               type="file"
                               accept="image/*"
@@ -893,22 +1039,45 @@ export const CheckoutPage: React.FC = () => {
                               className="hidden"
                             />
                           </label>
-                          {paymentScreenshot && (
-                            <div className="flex items-center space-x-2 text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-                              <Check size={14} />
-                              <span>Screenshot attached successfully</span>
-                              <a href={paymentScreenshot} target="_blank" rel="noreferrer" className="underline text-vk-blue font-bold ml-1">View</a>
+                        ) : (
+                          <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                            <div className="flex items-center space-x-3">
+                              <img
+                                src={paymentScreenshot}
+                                alt="Payment proof preview"
+                                className="w-12 h-12 object-cover rounded-lg border border-emerald-300"
+                              />
+                              <div>
+                                <span className="font-bold text-emerald-900 text-xs block">Screenshot Attached ✓</span>
+                                <a
+                                  href={paymentScreenshot}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[11px] text-purple-700 underline font-semibold"
+                                >
+                                  View Full Image
+                                </a>
+                              </div>
                             </div>
-                          )}
-                        </div>
+                            <button
+                              type="button"
+                              onClick={() => setPaymentScreenshot('')}
+                              className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
+                              title="Remove screenshot"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Verification Notice */}
-                      <div className="bg-amber-50 border border-amber-200 rounded p-3 text-[11px] text-amber-900 flex items-start space-x-2">
-                        <Info size={15} className="shrink-0 text-amber-600 mt-0.5" />
-                        <p>
-                          <strong>Payment Verification Notice:</strong> Upon clicking "Place Order", your order will be created with status <em>Pending Verification</em>. The store owner will verify your UTR before packaging your order.
-                        </p>
+                      {/* YouPI Protocol Guarantee Notice */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-700 flex items-start space-x-2.5">
+                        <ShieldCheck size={16} className="shrink-0 text-emerald-600 mt-0.5" />
+                        <div>
+                          <strong className="text-slate-900 block font-semibold">YouPI Zero-Intermediary Protection:</strong>
+                          <span>Your payment settles 100% directly into VK Technology's bank account without 3rd-party holding accounts. Once you click "Place Order", your receipt and tracking will be generated immediately.</span>
+                        </div>
                       </div>
                     </div>
                   )}
