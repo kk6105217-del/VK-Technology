@@ -13,7 +13,6 @@ __pycache__/
 # Production build outputs
 dist/
 client/dist/
-server/dist/
 frontend/dist/
 
 # Local Environment Variables (secrets)

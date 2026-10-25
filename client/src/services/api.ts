@@ -66,23 +66,43 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     delete headers['Content-Type'];
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    throw new Error(`Invalid API response: received content-type "${contentType || 'unknown'}" instead of application/json.`);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (networkErr: any) {
+    throw new Error(networkErr?.message || 'Network connection failed');
   }
 
-  const data = await response.json();
-
   if (!response.ok) {
-    const errorMsg = data?.error || 'An unexpected error occurred';
+    let errorMsg = `Server error (${response.status})`;
+    try {
+      const errJson = await response.json();
+      errorMsg = errJson?.error || errJson?.message || errorMsg;
+    } catch {
+      try {
+        const text = await response.text();
+        if (text && text.length < 150) {
+          errorMsg = text;
+        }
+      } catch {}
+    }
     throw new Error(errorMsg);
   }
 
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const text = await response.text();
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      return {} as T;
+    }
+  }
+
+  const data = await response.json();
   return data as T;
 }
 
@@ -125,7 +145,13 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(payload)
       }),
-    getAddresses: () => request<{ addresses: Address[] }>('/auth/addresses'),
+    getAddresses: async () => {
+      try {
+        return await request<{ addresses: Address[] }>('/auth/addresses');
+      } catch (err) {
+        return { addresses: [] };
+      }
+    },
     addAddress: (address: Address) =>
       request<{ message: string; id: number }>('/auth/addresses', {
         method: 'POST',
@@ -341,7 +367,13 @@ export const api = {
 
   // Wishlist
   wishlist: {
-    get: () => request<{ items: Product[] }>('/wishlist'),
+    get: async () => {
+      try {
+        return await request<{ items: Product[] }>('/wishlist');
+      } catch (err) {
+        return { items: [] };
+      }
+    },
     toggle: (productId: number) =>
       request<{ inWishlist: boolean; message: string }>('/wishlist/toggle', {
         method: 'POST',

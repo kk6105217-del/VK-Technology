@@ -13,9 +13,15 @@ from app.api.v1 import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize database tables on startup
-    await init_db()
+    try:
+        await init_db()
+    except Exception as e:
+        print(f"Warning: init_db failed on startup: {e}")
     # Ensure upload directory exists
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    try:
+        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    except Exception as e:
+        print(f"Warning: os.makedirs failed for {settings.UPLOAD_DIR}: {e}")
     yield
 
 app = FastAPI(
@@ -38,8 +44,11 @@ app.add_middleware(
 )
 
 # Mount local uploads directory for product images
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+try:
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+except Exception as e:
+    print(f"Warning: StaticFiles mount failed for uploads: {e}")
 
 # Include API v1 Routers
 api_v1_prefix = settings.API_V1_STR

@@ -25,6 +25,9 @@
   ],
   "author": "VK Technology",
   "license": "ISC",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "devDependencies": {
     "concurrently": "^9.1.2"
   }

@@ -2,6 +2,7 @@ from typing import List, Union
 from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
+import tempfile
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "VK Technology – DIY Tech Projects"
@@ -18,7 +19,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        f"sqlite+aiosqlite:///{os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'diy_store.db').replace(chr(92), '/')}"
+        f"sqlite+aiosqlite:///{os.path.join(tempfile.gettempdir() if os.getenv('VERCEL') else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'diy_store.db').replace(chr(92), '/')}"
     )
     
     # CORS
@@ -57,7 +58,7 @@ class Settings(BaseSettings):
     SMS_SENDER_ID: str = "VKTECH"
     
     # Uploads
-    UPLOAD_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
+    UPLOAD_DIR: str = os.path.join(tempfile.gettempdir() if os.getenv("VERCEL") else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
     
     model_config = SettingsConfigDict(
         env_file=".env",

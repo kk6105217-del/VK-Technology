@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { config } from './config.js';
 import { initDatabase } from './database.js';
@@ -21,8 +22,12 @@ import { upiRouter } from './routes/upi.js';
 
 const app = express();
 
-// Initialize database & seed defaults
-initDatabase();
+// Initialize database & seed defaults safely
+try {
+  initDatabase();
+} catch (err) {
+  console.warn('Database initialization warning:', err);
+}
 
 // CORS configuration
 app.use(cors({
@@ -34,10 +39,16 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static uploads directory
-const uploadsDir = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// Static uploads directory (safe for serverless read-only filesystems)
+const uploadsDir = (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
+  ? path.join(os.tmpdir(), 'uploads')
+  : path.resolve(process.cwd(), 'uploads');
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('Could not create uploads directory:', err);
 }
 app.use('/uploads', express.static(uploadsDir));
 app.get('/upi-qr-code.jpg', (req, res) => {
