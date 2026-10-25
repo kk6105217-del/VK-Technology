@@ -55,6 +55,16 @@ app.include_router(webhooks.router, prefix=api_v1_prefix)
 app.include_router(admin.router, prefix=api_v1_prefix)
 app.include_router(store_settings_api.router, prefix=api_v1_prefix)
 
+@app.get("/internal/server-health", tags=["Internal"])
+async def internal_server_health():
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{settings.SERVER_SERVICE_URL.rstrip('/')}/api/health", timeout=5.0)
+            return {"service": "backend-fastapi", "serverStatus": resp.json()}
+    except Exception as exc:
+        return JSONResponse(status_code=502, content={"error": "Failed to communicate with internal server service", "details": str(exc)})
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     return {

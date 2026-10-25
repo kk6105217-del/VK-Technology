@@ -91,6 +91,18 @@ if (clientDist) {
   });
 }
 
+// Proxy / communication endpoint with internal Python backend service
+app.get('/api/internal/backend-health', async (req, res) => {
+  try {
+    const targetUrl = new URL('health', config.backendServiceUrl.endsWith('/') ? config.backendServiceUrl : `${config.backendServiceUrl}/`);
+    const resp = await fetch(targetUrl.toString());
+    const data = await resp.json();
+    res.json({ service: 'server-express', backendStatus: data });
+  } catch (err: any) {
+    res.status(502).json({ error: 'Failed to communicate with internal backend service', details: err.message });
+  }
+});
+
 // Global error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled server error:', err);
@@ -99,11 +111,15 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-app.listen(config.port, () => {
-  console.log(`====================================================`);
-  console.log(`🚀 VK Technology Backend API running on port ${config.port}`);
-  console.log(`📍 Location: ${config.ownerLocation}`);
-  console.log(`👤 Owner Admin: ${config.adminEmail}`);
-  console.log(`💳 Currency: ${config.currencySymbol} (${config.currency})`);
-  console.log(`====================================================`);
-});
+if (!process.env.VERCEL) {
+  app.listen(config.port, () => {
+    console.log(`====================================================`);
+    console.log(`🚀 VK Technology Backend API running on port ${config.port}`);
+    console.log(`📍 Location: ${config.ownerLocation}`);
+    console.log(`👤 Owner Admin: ${config.adminEmail}`);
+    console.log(`💳 Currency: ${config.currencySymbol} (${config.currency})`);
+    console.log(`====================================================`);
+  });
+}
+
+export default app;

@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     
+    # Internal Vercel Service Bindings
+    SERVER_SERVICE_URL: str = os.getenv("SERVER_SERVICE_URL", "http://localhost:5000")
+    
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",

@@ -35,4 +35,7 @@ export const config = {
   whatsappPhoneId: process.env.WHATSAPP_PHONE_ID || '',
   whatsappBusinessPhone: process.env.WHATSAPP_BUSINESS_PHONE || '+91 8555997052',
   ownerWhatsappNumber: process.env.OWNER_WHATSAPP_NUMBER || '+91 8555997052',
+  
+  // Internal Vercel Service Bindings
+  backendServiceUrl: process.env.BACKEND_SERVICE_URL || 'http://localhost:8000',
 };
