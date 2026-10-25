@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd client && npm install && npm run build",
+  "buildCommand": "node -e \"const fs = require('fs'), { execSync } = require('child_process'); if (fs.existsSync('client')) { execSync('npm --prefix client install && npm --prefix client run build', { stdio: 'inherit' }); } else { execSync('npm run build', { stdio: 'inherit' }); }\"",
   "outputDirectory": "client/dist",
   "cleanUrls": true,
   "rewrites": [

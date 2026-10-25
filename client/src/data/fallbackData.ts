@@ -1,4 +1,4 @@
-import { Category, Product, Banner, StoreSettings } from '../types';
+import { Category, Product, Banner, StoreSettings, CartItem } from '../types';
 
 export const FALLBACK_SETTINGS: StoreSettings = {
   store_name: 'VK Technology',
@@ -579,4 +579,69 @@ export function filterFallbackProducts(params: {
     }
   };
 }
+
+export function getLocalCart(): { items: CartItem[]; subtotal: number; count: number } {
+  try {
+    const raw = localStorage.getItem('vk_cart_items');
+    const items: CartItem[] = raw ? JSON.parse(raw) : [];
+    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const count = items.reduce((sum, item) => sum + item.quantity, 0);
+    return { items, subtotal, count };
+  } catch (e) {
+    return { items: [], subtotal: 0, count: 0 };
+  }
+}
+
+export function addLocalCartItem(productId: number, quantity: number = 1): void {
+  const { items } = getLocalCart();
+  const existingIndex = items.findIndex(i => i.product_id === productId);
+  if (existingIndex > -1) {
+    items[existingIndex].quantity += quantity;
+    items[existingIndex].total = items[existingIndex].quantity * items[existingIndex].price;
+  } else {
+    const prod = FALLBACK_PRODUCTS.find(p => p.id === productId);
+    if (prod) {
+      const price = prod.discounted_price || prod.regular_price;
+      items.push({
+        cart_item_id: Date.now(),
+        product_id: prod.id,
+        name: prod.name,
+        slug: prod.slug,
+        sku: prod.sku,
+        price,
+        regular_price: prod.regular_price,
+        discounted_price: prod.discounted_price,
+        stock_quantity: prod.stock_quantity,
+        quantity,
+        image_url: prod.primary_image || (prod.images && prod.images[0]?.image_url) || '',
+        total: price * quantity
+      });
+    }
+  }
+  localStorage.setItem('vk_cart_items', JSON.stringify(items));
+}
+
+export function updateLocalCartQuantity(productId: number, quantity: number): void {
+  const { items } = getLocalCart();
+  const filtered = items.filter(i => {
+    if (i.product_id === productId) {
+      i.quantity = quantity;
+      i.total = i.price * quantity;
+      return quantity > 0;
+    }
+    return true;
+  });
+  localStorage.setItem('vk_cart_items', JSON.stringify(filtered));
+}
+
+export function removeLocalCartItem(productId: number): void {
+  const { items } = getLocalCart();
+  const filtered = items.filter(i => i.product_id !== productId);
+  localStorage.setItem('vk_cart_items', JSON.stringify(filtered));
+}
+
+export function clearLocalCart(): void {
+  localStorage.removeItem('vk_cart_items');
+}
+
 
