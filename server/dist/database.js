@@ -9,14 +9,15 @@ const os_1 = __importDefault(require("os"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const module_1 = require("module");
 const config_js_1 = require("./config.js");
-// Safe require helper for Node built-ins and optional modules
-const req = (0, module_1.createRequire)(process.cwd() + '/');
+// Safe dynamic loader for Node built-in sqlite in both CommonJS and ES environments
 let DatabaseSyncClass = null;
 try {
-    const sqliteModule = req('node:sqlite');
-    DatabaseSyncClass = sqliteModule.DatabaseSync;
+    let sqliteModule = null;
+    if (typeof require !== 'undefined') {
+        sqliteModule = require('node:sqlite');
+    }
+    DatabaseSyncClass = sqliteModule?.DatabaseSync || null;
 }
 catch (e) {
     console.warn('[DB] node:sqlite is not available in this Node runtime, using resilient mock fallback');

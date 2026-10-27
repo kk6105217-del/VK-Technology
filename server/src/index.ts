@@ -122,7 +122,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.VERCEL_ENV) {
   app.listen(config.port, () => {
     console.log(`====================================================`);
     console.log(`🚀 VK Technology Backend API running on port ${config.port}`);
@@ -131,6 +131,14 @@ if (!process.env.VERCEL) {
     console.log(`💳 Currency: ${config.currencySymbol} (${config.currency})`);
     console.log(`====================================================`);
   });
+}
+
+// Support both CommonJS (module.exports = app) for Vercel Serverless Function entrypoints
+// and ES Module (export default app)
+// @ts-ignore
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = app;
+  module.exports.default = app;
 }
 
 export default app;

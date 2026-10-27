@@ -5,14 +5,15 @@ import bcrypt from 'bcryptjs';
 import { createRequire } from 'module';
 import { config } from './config.js';
 
-// Safe require helper for Node built-ins and optional modules
-const req = createRequire(process.cwd() + '/');
-
+// Safe dynamic loader for Node built-in sqlite in both CommonJS and ES environments
 let DatabaseSyncClass: any = null;
 try {
-  const sqliteModule = req('node:sqlite');
-  DatabaseSyncClass = sqliteModule.DatabaseSync;
-} catch (e) {
+  let sqliteModule: any = null;
+  if (typeof require !== 'undefined') {
+    sqliteModule = require('node:sqlite');
+  }
+  DatabaseSyncClass = sqliteModule?.DatabaseSync || null;
+} catch (e: any) {
   console.warn('[DB] node:sqlite is not available in this Node runtime, using resilient mock fallback');
 }
 

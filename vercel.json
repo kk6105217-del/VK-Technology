@@ -4,7 +4,13 @@
     "client": {
       "root": "client",
       "framework": "vite",
-      "outputDirectory": "dist"
+      "outputDirectory": "dist",
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
     },
     "server": {
       "root": "server",
@@ -23,7 +29,7 @@
     "backend": {
       "root": "backend",
       "framework": "fastapi",
-      "entrypoint": "app.main:app"
+      "entrypoint": "main.py"
     },
     "frontend": {
       "root": "frontend",
@@ -57,24 +63,9 @@
       }
     },
     {
-      "source": "/assets/(.*)",
-      "destination": {
-        "service": "client",
-        "path": "/assets/$1"
-      }
-    },
-    {
-      "source": "/(.*\\.(?:js|css|png|jpg|jpeg|gif|svg|ico|json|woff2?|ttf|webp))",
-      "destination": {
-        "service": "client",
-        "path": "/$1"
-      }
-    },
-    {
       "source": "/(.*)",
       "destination": {
-        "service": "client",
-        "path": "/index.html"
+        "service": "client"
       }
     }
   ]
