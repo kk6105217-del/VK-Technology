@@ -272,51 +272,172 @@ export const api = {
   // Categories
   categories: {
     getAll: async () => {
+      let serverCats: Category[] = [];
       try {
         const res = await request<{ categories: Category[] }>('/categories');
-        if (Array.isArray(res?.categories) && res.categories.length > 0) {
-          return res;
+        if (Array.isArray(res?.categories)) {
+          serverCats = res.categories;
         }
-        return { categories: FALLBACK_CATEGORIES };
       } catch (err) {
-        console.warn('API /categories unavailable, falling back to local catalog:', err);
-        return { categories: FALLBACK_CATEGORIES };
+        console.warn('API /categories unavailable, falling back:', err);
       }
+
+      const custom: Category[] = JSON.parse(localStorage.getItem('vk_custom_categories') || '[]');
+      const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_categories') || '[]');
+
+      let all = serverCats.length > 0
+        ? [...custom, ...serverCats.filter(sc => !custom.some(cc => cc.id === sc.id))]
+        : [...custom, ...FALLBACK_CATEGORIES.filter(fc => !custom.some(cc => cc.id === fc.id))];
+
+      all = all.filter(c => !deleted.includes(Number(c.id)) && c.is_active);
+      return { categories: all };
     },
     getAdminAll: async () => {
+      let serverCats: Category[] = [];
       try {
         const res = await request<{ categories: Category[] }>('/categories/all');
-        if (Array.isArray(res?.categories)) return res;
-        return { categories: FALLBACK_CATEGORIES };
+        if (Array.isArray(res?.categories)) {
+          serverCats = res.categories;
+        }
       } catch (err) {
-        return { categories: FALLBACK_CATEGORIES };
+        console.warn('API /categories/all unavailable, falling back:', err);
       }
+
+      const custom: Category[] = JSON.parse(localStorage.getItem('vk_custom_categories') || '[]');
+      const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_categories') || '[]');
+
+      let all = serverCats.length > 0
+        ? [...custom, ...serverCats.filter(sc => !custom.some(cc => cc.id === sc.id))]
+        : [...custom, ...FALLBACK_CATEGORIES.filter(fc => !custom.some(cc => cc.id === fc.id))];
+
+      all = all.filter(c => !deleted.includes(Number(c.id)));
+      return { categories: all };
     },
     getBySlug: async (slug: string) => {
+      const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_categories') || '[]');
+      const custom: Category[] = JSON.parse(localStorage.getItem('vk_custom_categories') || '[]');
+
+      const customFound = custom.find(c => c.slug === slug);
+      if (customFound) {
+        if (deleted.includes(Number(customFound.id))) throw new Error('Category not found');
+        return { category: customFound };
+      }
+
       try {
         const res = await request<{ category: Category }>(`/categories/${slug}`);
-        if (res?.category) return res;
+        if (res?.category) {
+          if (deleted.includes(Number(res.category.id))) throw new Error('Category not found');
+          const override = custom.find(cc => cc.id === res.category.id);
+          return { category: override || res.category };
+        }
         throw new Error('Category not found');
       } catch (err) {
         const found = FALLBACK_CATEGORIES.find(c => c.slug === slug);
-        if (found) return { category: found };
+        if (found) {
+          if (deleted.includes(Number(found.id))) throw new Error('Category not found');
+          const customOverride = custom.find(cc => cc.id === found.id);
+          return { category: customOverride || found };
+        }
         throw err;
       }
     },
-    create: (category: Partial<Category>) =>
-      request<{ message: string; id: number }>('/categories', {
-        method: 'POST',
-        body: JSON.stringify(category)
-      }),
-    update: (id: number, category: Partial<Category>) =>
-      request<{ message: string }>(`/categories/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(category)
-      }),
-    delete: (id: number) =>
-      request<{ message: string }>(`/categories/${id}`, {
-        method: 'DELETE'
-      }),
+    create: async (category: Partial<Category>) => {
+      let newId = Date.now();
+      try {
+        const res = await request<{ message: string; id: number }>('/categories', {
+          method: 'POST',
+          body: JSON.stringify(category)
+        });
+        if (res?.id) newId = res.id;
+      } catch (err) {
+        console.warn('Server create category error, saving locally:', err);
+      }
+
+      const newCat: Category = {
+        id: newId,
+        name: category.name || 'New Category',
+        slug: category.slug || `category-${newId}`,
+        description: category.description || '',
+        icon: category.icon || 'Cpu',
+        image_url: category.image_url || 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80',
+        sort_order: Number(category.sort_order || 1),
+        is_active: category.is_active !== undefined ? category.is_active : 1
+      };
+
+      const custom: Category[] = JSON.parse(localStorage.getItem('vk_custom_categories') || '[]');
+      custom.push(newCat);
+      localStorage.setItem('vk_custom_categories', JSON.stringify(custom));
+
+      return { message: 'Category created successfully.', id: newId };
+    },
+    update: async (id: number, category: Partial<Category>) => {
+      try {
+        await request<{ message: string }>(`/categories/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify(category)
+        });
+      } catch (err) {
+        console.warn('Server update category error, saving locally:', err);
+      }
+
+      const custom: Category[] = JSON.parse(localStorage.getItem('vk_custom_categories') || '[]');
+      const idx = custom.findIndex(c => Number(c.id) === Number(id));
+      if (idx !== -1) {
+        custom[idx] = { ...custom[idx], ...category };
+      } else {
+        const fallback = FALLBACK_CATEGORIES.find(c => Number(c.id) === Number(id));
+        if (fallback) {
+          custom.push({ ...fallback, ...category });
+        } else {
+          custom.push({
+            id,
+            name: category.name || 'Category',
+            slug: category.slug || `category-${id}`,
+            description: category.description || '',
+            icon: category.icon || 'Cpu',
+            image_url: category.image_url || '',
+            sort_order: Number(category.sort_order || 1),
+            is_active: category.is_active !== undefined ? category.is_active : 1,
+            ...category
+          });
+        }
+      }
+      localStorage.setItem('vk_custom_categories', JSON.stringify(custom));
+      return { message: 'Category updated successfully.' };
+    },
+    delete: async (id: number) => {
+      try {
+        await request<{ message: string }>(`/categories/${id}`, {
+          method: 'DELETE'
+        });
+      } catch (err) {
+        console.warn('Server category delete error or offline:', err);
+      }
+
+      const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_categories') || '[]');
+      if (!deleted.includes(Number(id))) {
+        deleted.push(Number(id));
+        localStorage.setItem('vk_deleted_categories', JSON.stringify(deleted));
+      }
+
+      const custom: Category[] = JSON.parse(localStorage.getItem('vk_custom_categories') || '[]');
+      const filtered = custom.filter(c => Number(c.id) !== Number(id));
+      localStorage.setItem('vk_custom_categories', JSON.stringify(filtered));
+
+      const customProducts: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
+      let prodUpdated = false;
+      customProducts.forEach(p => {
+        if (Number(p.category_id) === Number(id)) {
+          p.category_id = 1;
+          prodUpdated = true;
+        }
+      });
+      if (prodUpdated) {
+        localStorage.setItem('vk_custom_products', JSON.stringify(customProducts));
+      }
+
+      return { message: 'Category deleted successfully.' };
+    },
   },
 
   // Products
