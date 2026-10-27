@@ -46,7 +46,7 @@ export const AdminLayout: React.FC = () => {
           </div>
           <h2 className="text-xl font-bold text-gray-900">Admin Authorization Required</h2>
           <p className="text-xs text-gray-600 leading-relaxed">
-            This administration portal is restricted strictly to the verified owner of VK Technology: <strong>karthik.suroju@gmail.com</strong>.
+            This administration portal is restricted strictly to verified store administrators.
           </p>
           <div className="pt-2">
             <Link

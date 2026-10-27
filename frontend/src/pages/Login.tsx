@@ -36,11 +36,6 @@ export const Login: React.FC = () => {
     }
   };
 
-  const handleFillOwnerDemo = () => {
-    setEmail('karthik.suroju@gmail.com');
-    setPassword('OwnerAdmin@2026!');
-  };
-
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full bg-white border border-slate-200 rounded-2xl p-8 shadow-sm space-y-6">
@@ -103,18 +98,6 @@ export const Login: React.FC = () => {
             <ArrowRight size={14} />
           </button>
         </form>
-
-        {/* Demo Credentials Helper */}
-        <div className="pt-2 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={handleFillOwnerDemo}
-            className="w-full py-2 px-3 bg-slate-50 hover:bg-cyan-50 border border-slate-200 rounded-lg text-[11px] text-cyan-800 font-semibold flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <ShieldCheck size={14} className="text-cyan-600" />
-            Auto-fill Owner Credentials (karthik.suroju@gmail.com)
-          </button>
-        </div>
 
         <div className="text-center text-xs text-slate-500 pt-1">
           Don't have an account yet?{' '}

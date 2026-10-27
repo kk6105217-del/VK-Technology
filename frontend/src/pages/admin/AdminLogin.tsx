@@ -7,7 +7,7 @@ export const AdminLogin: React.FC = () => {
   const { login, isOwner, logout, user } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('karthik.suroju@gmail.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -84,16 +84,16 @@ export const AdminLogin: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             <div>
               <label className="block font-semibold text-slate-300 mb-1.5">
-                Designated Owner Email
+                Owner Email or Username
               </label>
               <div className="relative">
                 <Mail size={16} className="absolute left-3.5 top-3 text-slate-500" />
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="karthik.suroju@gmail.com"
+                  placeholder="e.g. Admin@vktechnology or email"
                   className="w-full pl-10 pr-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent font-medium"
                 />
               </div>
@@ -141,17 +141,6 @@ export const AdminLogin: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Quick autofill helper for verification */}
-          <div className="pt-2 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={fillOwnerCredentials}
-              className="w-full py-2 px-3 bg-slate-800/50 hover:bg-slate-800 text-cyan-400 hover:text-cyan-300 text-[11px] font-mono rounded-lg border border-slate-700/60 transition-colors flex items-center justify-center gap-1.5"
-            >
-              <span>⚡ Fill Owner Credentials (karthik.suroju@gmail.com)</span>
-            </button>
-          </div>
 
           <div className="text-center pt-2">
             <Link

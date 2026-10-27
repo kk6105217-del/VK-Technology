@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, Lock, Mail, AlertCircle, ArrowRight, Cpu } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const AdminLoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { adminLogin, isAdmin } = useAuth();
+  const { adminLogin } = useAuth();
 
-  const [email, setEmail] = useState('karthik.suroju@gmail.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -16,8 +17,16 @@ export const AdminLoginPage: React.FC = () => {
     e.preventDefault();
     setErrorMsg('');
 
-    if (email.trim().toLowerCase() !== 'karthik.suroju@gmail.com') {
-      setErrorMsg('Access denied. Only the authorized owner (karthik.suroju@gmail.com) can access this administration portal.');
+    const cleanEmail = email.trim().toLowerCase();
+    const isAllowedAdmin =
+      cleanEmail === 'karthik.suroju@gmail.com' ||
+      cleanEmail === 'admin@vktechnology' ||
+      cleanEmail === 'admin@vktechnology.in' ||
+      cleanEmail === 'admin@vktechnology.shop' ||
+      cleanEmail === 'admin';
+
+    if (!isAllowedAdmin) {
+      setErrorMsg('Access denied. Please enter an authorized administrator account.');
       return;
     }
 
@@ -75,14 +84,18 @@ export const AdminLoginPage: React.FC = () => {
 
         <form onSubmit={handleAdminLogin} className="space-y-4 text-xs">
           <div>
-            <label className="block font-bold text-gray-700 mb-1">Owner Admin Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded text-xs focus:outline-none font-medium text-gray-900 bg-gray-50"
-            />
+            <label className="block font-bold text-gray-700 mb-1">Admin Email or Username</label>
+            <div className="relative">
+              <input
+                type="text"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. Admin@vktechnology or email"
+                className="w-full px-3 py-2 pl-9 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 font-medium text-gray-900 bg-white"
+              />
+              <Mail size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            </div>
           </div>
 
           <div>
@@ -92,19 +105,25 @@ export const AdminLoginPage: React.FC = () => {
                 Reset password?
               </Link>
             </div>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your administrative password"
-              className="w-full px-3 py-2 border border-gray-300 rounded text-xs focus:outline-none"
-            />
-          </div>
-
-          <div className="bg-amber-50 border border-amber-200 rounded p-2.5 text-[11px] text-amber-900 space-y-0.5">
-            <span className="font-bold">Initial Setup Password:</span>
-            <p>If logging in for the first time, use <code>Admin@VK2026!</code> and change it inside the dashboard profile.</p>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your administrative password"
+                className="w-full px-3 py-2 pl-9 pr-10 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+              />
+              <Lock size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
           </div>
 
           <button

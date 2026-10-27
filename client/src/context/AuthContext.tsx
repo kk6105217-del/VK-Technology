@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
-  const isAdmin = !!(user && user.role === 'admin' && user.email.toLowerCase() === 'karthik.suroju@gmail.com');
+  const isAdmin = !!(user && user.role === 'admin');
 
   return (
     <AuthContext.Provider
