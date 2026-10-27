@@ -32,11 +32,9 @@ let dbInstance: any = null;
 
 if (DatabaseSyncClass) {
   try {
-    const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
-    let dbPath: string;
-
+    const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL_ENV);
     if (isVercel) {
-      dbPath = path.join(os.tmpdir(), 'vktechnology.db');
+      dbInstance = new DatabaseSyncClass(':memory:');
     } else {
       const dataDir = path.resolve(process.cwd(), 'data');
       try {
@@ -44,16 +42,15 @@ if (DatabaseSyncClass) {
           fs.mkdirSync(dataDir, { recursive: true });
         }
       } catch (err) {}
-      dbPath = path.join(dataDir, 'vktechnology.db');
+      const dbPath = path.join(dataDir, 'vktechnology.db');
+      dbInstance = new DatabaseSyncClass(dbPath);
+      try {
+        dbInstance.exec('PRAGMA journal_mode = WAL;');
+        dbInstance.exec('PRAGMA foreign_keys = ON;');
+      } catch (e) {}
     }
-
-    dbInstance = new DatabaseSyncClass(dbPath);
-    try {
-      dbInstance.exec('PRAGMA journal_mode = WAL;');
-      dbInstance.exec('PRAGMA foreign_keys = ON;');
-    } catch (e) {}
   } catch (err) {
-    console.warn('[DB] Could not open file database, attempting :memory:', err);
+    console.warn('[DB] Could not open database, attempting :memory:', err);
     try {
       dbInstance = new DatabaseSyncClass(':memory:');
     } catch (memErr) {
