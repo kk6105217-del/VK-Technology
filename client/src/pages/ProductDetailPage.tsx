@@ -563,7 +563,7 @@ export const ProductDetailPage: React.FC = () => {
                   <strong>Warranty:</strong> {product.warranty_info || '6 Months Manufacturer Testing Warranty'}. Covers manufacturing defects and dead-on-arrival components.
                 </p>
                 <p className="text-gray-700">
-                  <strong>Return Policy:</strong> 7-day replacement guarantee if the product arrives damaged or defective. Simply reach out with an unboxing photo to our support desk or WhatsApp (+91 98765 43210).
+                  <strong>Return Policy:</strong> 7-day replacement guarantee if the product arrives damaged or defective. Simply reach out with an unboxing photo to our support desk (admin@vktechnology.shop) or WhatsApp (+91 8555997052).
                 </p>
                 <p className="text-gray-500 text-[11px]">
                   Note: Burnt components resulting from incorrect input voltage or short circuits caused by user wiring errors are not covered under replacement.

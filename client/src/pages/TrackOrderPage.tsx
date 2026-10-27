@@ -90,14 +90,21 @@ export const TrackOrderPage: React.FC = () => {
         </form>
 
         <div className="pt-3 border-t border-gray-200 text-center text-xs text-gray-500">
-          Need help with your shipment? Contact our WhatsApp desk at{' '}
+          Need help with your shipment? Email us at{' '}
           <a
-            href="https://api.whatsapp.com/send?phone=919876543210"
+            href="mailto:admin@vktechnology.shop"
+            className="text-vk-blue font-bold hover:underline"
+          >
+            admin@vktechnology.shop
+          </a>{' '}
+          or WhatsApp at{' '}
+          <a
+            href="https://api.whatsapp.com/send?phone=918555997052"
             target="_blank"
             rel="noreferrer"
             className="text-emerald-700 font-bold hover:underline"
           >
-            +91 98765 43210
+            +91 8555997052
           </a>
         </div>
       </div>

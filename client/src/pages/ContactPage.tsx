@@ -114,10 +114,10 @@ export const ContactPage: React.FC = () => {
                 <div>
                   <strong className="text-gray-900 block font-bold">Owner & Support Email:</strong>
                   <a
-                    href="mailto:karthik.suroju@gmail.com"
+                    href="mailto:admin@vktechnology.shop"
                     className="text-vk-blue hover:underline font-semibold"
                   >
-                    karthik.suroju@gmail.com
+                    admin@vktechnology.shop
                   </a>
                 </div>
               </div>

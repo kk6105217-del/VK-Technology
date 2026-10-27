@@ -2,7 +2,7 @@ import { Category, Product, Banner, StoreSettings, CartItem } from '../types';
 
 export const FALLBACK_SETTINGS: StoreSettings = {
   store_name: 'VK Technology',
-  owner_email: 'karthik.suroju@gmail.com',
+  owner_email: 'admin@vktechnology.shop',
   owner_name: 'Karthik Suroju',
   business_phone: '+91 8555997052',
   business_address: 'India',

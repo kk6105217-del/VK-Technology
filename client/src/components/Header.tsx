@@ -13,6 +13,7 @@ import {
   Cpu,
   X,
   PhoneCall,
+  Mail,
   Menu
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -115,10 +116,10 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
           </span>
         </div>
         <div className="hidden md:flex items-center space-x-4 text-gray-400">
-          <span className="flex items-center space-x-1">
-            <PhoneCall size={12} className="text-amber-400" />
-            <span>Support: +91 98765 43210</span>
-          </span>
+          <a href="mailto:admin@vktechnology.shop" className="flex items-center space-x-1 hover:text-white transition">
+            <Mail size={12} className="text-amber-400" />
+            <span>Support: admin@vktechnology.shop</span>
+          </a>
           <Link to="/contact" className="hover:text-white transition">24/7 Help</Link>
           <Link to="/track" className="hover:text-white transition">Track Order</Link>
         </div>

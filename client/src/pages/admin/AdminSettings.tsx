@@ -18,7 +18,11 @@ import {
   Info,
   QrCode,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Lock,
+  Key,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -26,7 +30,7 @@ export const AdminSettings: React.FC = () => {
   const [settings, setSettings] = useState<StoreSettings>({
     store_name: 'VK Technology',
     owner_name: 'Karthik Suroju',
-    owner_email: 'karthik.suroju@gmail.com',
+    owner_email: 'admin@vktechnology.shop',
     business_phone: '+91 8555997052',
     business_address: 'India',
     currency_code: 'INR',
@@ -50,7 +54,17 @@ export const AdminSettings: React.FC = () => {
   const [uploadingQr, setUploadingQr] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'store' | 'shipping' | 'payments' | 'notifications'>('store');
+  const [activeTab, setActiveTab] = useState<'store' | 'shipping' | 'payments' | 'notifications' | 'security'>('store');
+
+  // Admin Account & Password State
+  const [adminEmail, setAdminEmail] = useState(localStorage.getItem('vk_admin_email') || 'admin@vktechnology.shop');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [updatingCredentials, setUpdatingCredentials] = useState(false);
+  const [credSuccess, setCredSuccess] = useState<string | null>(null);
+  const [credError, setCredError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -105,6 +119,40 @@ export const AdminSettings: React.FC = () => {
       setError(err.message || 'Failed to update settings.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleUpdateCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCredError(null);
+    setCredSuccess(null);
+
+    if (adminPassword && adminPassword.length < 6) {
+      setCredError('New admin password must be at least 6 characters long.');
+      return;
+    }
+
+    if (adminPassword && adminPassword !== confirmPassword) {
+      setCredError('New password and confirm password do not match.');
+      return;
+    }
+
+    try {
+      setUpdatingCredentials(true);
+      const cleanEmail = (adminEmail.trim() || 'admin@vktechnology.shop').toLowerCase();
+      await (api.auth as any).updateAdminCredentials({
+        email: cleanEmail,
+        password: adminPassword || undefined
+      });
+      handleChange('owner_email', cleanEmail);
+      setCredSuccess(`Admin credentials updated successfully! You can now log in using ${cleanEmail}.`);
+      setAdminPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setCredSuccess(null), 6000);
+    } catch (err: any) {
+      setCredError(err.message || 'Failed to update admin credentials.');
+    } finally {
+      setUpdatingCredentials(false);
     }
   };
 
@@ -194,6 +242,16 @@ export const AdminSettings: React.FC = () => {
           }`}
         >
           <Bell size={15} /> Order Notifications
+        </button>
+        <button
+          onClick={() => setActiveTab('security')}
+          className={`py-3 px-4 font-bold border-b-2 transition flex items-center gap-1.5 ${
+            activeTab === 'security'
+              ? 'border-amber-500 text-amber-600'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <Lock size={15} /> Admin Account & Security
         </button>
       </div>
 
@@ -516,7 +574,7 @@ RAZORPAY_KEY_ID=rzp_test_...&#10;RAZORPAY_KEY_SECRET=...
                     Every confirmed order immediately sends an order confirmation to:
                   </p>
                   <ul className="list-disc pl-5 text-[11px] space-y-0.5">
-                    <li><strong>Store Owner:</strong> <span className="font-mono text-amber-950">karthik.suroju@gmail.com</span></li>
+                    <li><strong>Store Owner:</strong> <span className="font-mono text-amber-950">{settings.owner_email || 'admin@vktechnology.shop'}</span></li>
                     <li><strong>Customer:</strong> The email and phone number provided at checkout.</li>
                   </ul>
                 </div>
@@ -553,6 +611,125 @@ RESEND_API_KEY=re_...&#10;# Or SMTP:&#10;SMTP_HOST=smtp.gmail.com&#10;SMTP_PORT=
                   📱 WhatsApp Web fallback links (<code className="font-mono text-gray-800">api.whatsapp.com/send</code>) are automatically generated for all placed orders even if third-party WhatsApp Business API keys are not supplied.
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* TAB 5: ADMIN ACCOUNT & SECURITY */}
+          {activeTab === 'security' && (
+            <div className="space-y-6 max-w-2xl">
+              {/* Account Status Card */}
+              <div className="bg-slate-900 text-white p-5 rounded-xl border border-slate-800 space-y-2">
+                <div className="flex items-center space-x-2 text-amber-400 font-bold text-xs">
+                  <ShieldCheck size={16} />
+                  <span>MASTER ADMINISTRATOR & OWNER ACCESS</span>
+                </div>
+                <div className="text-sm font-semibold">
+                  Active Admin Account: <span className="font-mono text-cyan-300">{adminEmail || 'admin@vktechnology.shop'}</span>
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  You can update your owner login email and password below. Your changes will immediately update the administrative login credentials.
+                </p>
+              </div>
+
+              {credSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg text-xs flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                  <span>{credSuccess}</span>
+                </div>
+              )}
+
+              {credError && (
+                <div className="p-3 bg-red-50 border border-red-300 text-red-800 rounded-lg text-xs flex items-center gap-2">
+                  <AlertCircle size={16} className="text-red-600 shrink-0" />
+                  <span>{credError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleUpdateCredentials} className="space-y-5 bg-white p-5 rounded-xl border border-gray-200">
+                <h3 className="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                  <Lock size={16} className="text-amber-500" />
+                  <span>Update Admin Login Credentials</span>
+                </h3>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Owner Admin Email
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      placeholder="admin@vktechnology.shop"
+                      className="w-full px-3 py-2 pl-9 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium text-gray-900"
+                    />
+                    <Mail size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Used to authenticate at <code>/admin/login</code>. Default: <strong>admin@vktechnology.shop</strong>
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      New Admin Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showAdminPassword ? 'text' : 'password'}
+                        value={adminPassword}
+                        onChange={(e) => setAdminPassword(e.target.value)}
+                        placeholder="Leave blank to keep unchanged"
+                        className="w-full px-3 py-2 pl-9 pr-9 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                      <Key size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminPassword(!showAdminPassword)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      >
+                        {showAdminPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Confirm New Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-type new password"
+                        className="w-full px-3 py-2 pl-9 pr-9 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                      <Key size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      >
+                        {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={updatingCredentials}
+                    className="bg-gray-900 hover:bg-black text-white font-bold px-5 py-2.5 rounded text-xs flex items-center gap-2 shadow transition disabled:opacity-50"
+                  >
+                    <Save size={15} className="text-amber-400" />
+                    <span>{updatingCredentials ? 'Saving Credentials...' : 'Save Admin Email & Password'}</span>
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 

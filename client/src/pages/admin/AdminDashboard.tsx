@@ -134,7 +134,7 @@ export const AdminDashboard: React.FC = () => {
               </span>
             ) : (
               <span className="text-[11px] text-emerald-700 font-medium mt-1 block">
-                Inventory levels healthy
+                0 items low on stock • Inventory healthy
               </span>
             )}
           </div>

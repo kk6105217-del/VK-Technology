@@ -18,12 +18,14 @@ export const AdminLoginPage: React.FC = () => {
     setErrorMsg('');
 
     const cleanEmail = email.trim().toLowerCase();
+    const customAdminEmail = localStorage.getItem('vk_admin_email')?.toLowerCase();
     const isAllowedAdmin =
-      cleanEmail === 'karthik.suroju@gmail.com' ||
+      cleanEmail === 'admin@vktechnology.shop' ||
       cleanEmail === 'admin@vktechnology' ||
       cleanEmail === 'admin@vktechnology.in' ||
-      cleanEmail === 'admin@vktechnology.shop' ||
-      cleanEmail === 'admin';
+      cleanEmail === 'karthik.suroju@gmail.com' ||
+      cleanEmail === 'admin' ||
+      (customAdminEmail && cleanEmail === customAdminEmail);
 
     if (!isAllowedAdmin) {
       setErrorMsg('Access denied. Please enter an authorized administrator account.');
@@ -91,7 +93,7 @@ export const AdminLoginPage: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="e.g. Admin@vktechnology or email"
+                placeholder="e.g. admin@vktechnology.shop"
                 className="w-full px-3 py-2 pl-9 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 font-medium text-gray-900 bg-white"
               />
               <Mail size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
