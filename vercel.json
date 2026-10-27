@@ -51,9 +51,30 @@
       }
     },
     {
+      "source": "/upi-qr-code.jpg",
+      "destination": {
+        "service": "server"
+      }
+    },
+    {
+      "source": "/assets/(.*)",
+      "destination": {
+        "service": "client",
+        "path": "/assets/$1"
+      }
+    },
+    {
+      "source": "/(.*\\.(?:js|css|png|jpg|jpeg|gif|svg|ico|json|woff2?|ttf|webp))",
+      "destination": {
+        "service": "client",
+        "path": "/$1"
+      }
+    },
+    {
       "source": "/(.*)",
       "destination": {
-        "service": "client"
+        "service": "client",
+        "path": "/index.html"
       }
     }
   ]
