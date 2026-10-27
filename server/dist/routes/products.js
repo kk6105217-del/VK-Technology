@@ -303,23 +303,65 @@ exports.productsRouter.post('/', auth_js_1.authenticateToken, auth_js_1.requireA
 exports.productsRouter.put('/:id', auth_js_1.authenticateToken, auth_js_1.requireAdmin, (req, res) => {
     try {
         const productId = req.params.id;
-        const { name, slug, sku, category_id, subcategory, short_description, description, regular_price, discounted_price, stock_quantity, brand, specifications, features, compatibility, package_contents, shipping_weight_grams, estimated_dispatch_days, warranty_info, is_featured, is_active, images } = req.body;
-        database_js_1.db.prepare(`
-      UPDATE products SET
-        name = ?, slug = ?, sku = ?, category_id = ?, subcategory = ?, short_description = ?, description = ?,
-        regular_price = ?, discounted_price = ?, stock_quantity = ?, brand = ?, specifications_json = ?,
-        features_json = ?, compatibility = ?, package_contents_json = ?, shipping_weight_grams = ?,
-        estimated_dispatch_days = ?, warranty_info = ?, is_featured = ?, is_active = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `).run(name, slug, sku.toUpperCase(), category_id, subcategory || null, short_description || null, description, Number(regular_price), discounted_price ? Number(discounted_price) : null, Number(stock_quantity), brand, typeof specifications === 'string' ? specifications : JSON.stringify(specifications || {}), typeof features === 'string' ? features : JSON.stringify(features || []), compatibility, typeof package_contents === 'string' ? package_contents : JSON.stringify(package_contents || []), shipping_weight_grams, estimated_dispatch_days, warranty_info, is_featured ? 1 : 0, is_active ? 1 : 0, productId);
+        const { name, slug, sku, category_id, subcategory, short_description, description, regular_price, discounted_price, stock_quantity, brand, specifications, features, compatibility, package_contents, shipping_weight_grams, estimated_dispatch_days, warranty_info, is_featured, is_active, images, primary_image } = req.body;
+        const existingProduct = database_js_1.db.prepare('SELECT id, slug, sku FROM products WHERE id = ?').get(productId);
+        let cleanSlug = slug;
+        if (!cleanSlug && existingProduct?.slug) {
+            cleanSlug = existingProduct.slug;
+        }
+        if (!cleanSlug && name) {
+            cleanSlug = name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        }
+        if (!cleanSlug) {
+            cleanSlug = `product-${productId}`;
+        }
+        let cleanSku = sku ? sku.trim().toUpperCase() : (existingProduct?.sku || `VK-${productId}`);
+        let validCatId = Number(category_id || 1);
+        const catExists = database_js_1.db.prepare('SELECT id FROM categories WHERE id = ?').get(validCatId);
+        if (!catExists) {
+            const firstCat = database_js_1.db.prepare('SELECT id FROM categories ORDER BY id ASC LIMIT 1').get();
+            if (firstCat)
+                validCatId = firstCat.id;
+        }
+        const regPrice = Number(regular_price || 0);
+        const discPrice = (discounted_price !== undefined && discounted_price !== null && discounted_price !== '')
+            ? Number(discounted_price)
+            : null;
+        if (!existingProduct) {
+            // Upsert product if it doesn't exist in server database yet
+            database_js_1.db.prepare(`
+        INSERT INTO products (
+          id, name, slug, sku, category_id, subcategory, short_description, description,
+          regular_price, discounted_price, stock_quantity, brand, specifications_json,
+          features_json, compatibility, package_contents_json, shipping_weight_grams,
+          estimated_dispatch_days, warranty_info, is_featured, is_active, created_at, updated_at
+        ) VALUES (
+          ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?, ?, datetime('now'), datetime('now')
+        )
+      `).run(productId, name || 'Product', cleanSlug, cleanSku, validCatId, subcategory || null, short_description || null, description || name || '', regPrice, discPrice, Number(stock_quantity || 0), brand || 'VK Technology', typeof specifications === 'string' ? specifications : JSON.stringify(specifications || {}), typeof features === 'string' ? features : JSON.stringify(features || []), compatibility || '', typeof package_contents === 'string' ? package_contents : JSON.stringify(package_contents || []), Number(shipping_weight_grams || 250), Number(estimated_dispatch_days || 1), warranty_info || '6 Months Warranty', is_featured ? 1 : 0, is_active !== undefined ? (is_active ? 1 : 0) : 1);
+        }
+        else {
+            database_js_1.db.prepare(`
+        UPDATE products SET
+          name = ?, slug = ?, sku = ?, category_id = ?, subcategory = ?, short_description = ?, description = ?,
+          regular_price = ?, discounted_price = ?, stock_quantity = ?, brand = ?, specifications_json = ?,
+          features_json = ?, compatibility = ?, package_contents_json = ?, shipping_weight_grams = ?,
+          estimated_dispatch_days = ?, warranty_info = ?, is_featured = ?, is_active = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).run(name, cleanSlug, cleanSku, validCatId, subcategory || null, short_description || null, description, regPrice, discPrice, Number(stock_quantity || 0), brand || 'VK Technology', typeof specifications === 'string' ? specifications : JSON.stringify(specifications || {}), typeof features === 'string' ? features : JSON.stringify(features || []), compatibility || '', typeof package_contents === 'string' ? package_contents : JSON.stringify(package_contents || []), Number(shipping_weight_grams || 250), Number(estimated_dispatch_days || 1), warranty_info || '6 Months Warranty', is_featured ? 1 : 0, is_active !== undefined ? (is_active ? 1 : 0) : 1, productId);
+        }
         // Update images if provided
-        if (Array.isArray(images)) {
+        const allImages = Array.isArray(images) && images.length > 0 ? images : (primary_image ? [primary_image] : []);
+        if (allImages.length > 0) {
             database_js_1.db.prepare('DELETE FROM product_images WHERE product_id = ?').run(productId);
             const imgInsert = database_js_1.db.prepare(`
         INSERT INTO product_images (product_id, image_url, alt_text, sort_order, is_primary)
         VALUES (?, ?, ?, ?, ?)
       `);
-            images.forEach((img, idx) => {
+            allImages.forEach((img, idx) => {
                 const url = typeof img === 'string' ? img : img.image_url || img.url;
                 if (url) {
                     imgInsert.run(productId, url, name, idx, idx === 0 ? 1 : 0);
@@ -329,6 +371,7 @@ exports.productsRouter.put('/:id', auth_js_1.authenticateToken, auth_js_1.requir
         res.json({ message: 'Product updated successfully.' });
     }
     catch (error) {
+        console.error('Update product error:', error);
         res.status(500).json({ error: error.message || 'Failed to update product.' });
     }
 });

@@ -136,7 +136,25 @@ export const AdminProducts: React.FC = () => {
 
     setFeatures(p.features || []);
     setPackageContents(p.package_contents || []);
-    setImages(p.images?.map(i => i.image_url) || [p.primary_image || '']);
+
+    // Extract all images reliably (handles object array and string array)
+    const extractedImages: string[] = [];
+    if (Array.isArray(p.images) && p.images.length > 0) {
+      p.images.forEach((img: any) => {
+        const u = typeof img === 'string' ? img : (img?.image_url || img?.url);
+        if (u && typeof u === 'string' && u.trim().length > 0 && !extractedImages.includes(u.trim())) {
+          extractedImages.push(u.trim());
+        }
+      });
+    }
+    if (p.primary_image && typeof p.primary_image === 'string' && !extractedImages.includes(p.primary_image)) {
+      extractedImages.unshift(p.primary_image);
+    }
+    if (extractedImages.length === 0) {
+      extractedImages.push('https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80');
+    }
+
+    setImages(extractedImages);
     setFormError('');
     setFormSuccess('');
     setIsModalOpen(true);
@@ -149,11 +167,13 @@ export const AdminProducts: React.FC = () => {
     try {
       setUploadingImage(true);
       const res = await api.upload.single(file);
-      setImages(prev => [...prev, res.url]);
+      // Place newly uploaded image first as the primary product photo
+      setImages(prev => [res.url, ...prev.filter(url => url !== res.url)]);
     } catch (err: any) {
       alert(err.message || 'Image upload failed');
     } finally {
       setUploadingImage(false);
+      e.target.value = '';
     }
   };
 
@@ -173,15 +193,24 @@ export const AdminProducts: React.FC = () => {
       if (s.key.trim()) specsMap[s.key.trim()] = s.value.trim();
     });
 
+    const cleanImages = images.filter(img => typeof img === 'string' && img.trim().length > 0);
+    const finalPrimaryImage = cleanImages[0] || editingProduct?.primary_image || 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80';
+    const computedSlug = (editingProduct?.slug || name.trim())
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || `product-${editingProduct?.id || Date.now()}`;
+
     const payload = {
       name: name.trim(),
+      slug: computedSlug,
       sku: sku.trim().toUpperCase(),
       category_id: Number(categoryId),
       subcategory: subcategory.trim() || undefined,
       short_description: shortDescription.trim() || undefined,
       description: description.trim() || name.trim(),
       regular_price: Number(regularPrice),
-      discounted_price: discountedPrice ? Number(discountedPrice) : null,
+      discounted_price: (discountedPrice !== '' && discountedPrice !== null && discountedPrice !== undefined) ? Number(discountedPrice) : null,
       stock_quantity: Number(stockQuantity || 0),
       brand: brand.trim(),
       compatibility: compatibility.trim(),
@@ -193,14 +222,15 @@ export const AdminProducts: React.FC = () => {
       specifications: specsMap,
       features: features.filter(f => f.trim().length > 0),
       package_contents: packageContents.filter(p => p.trim().length > 0),
-      images: images.filter(img => img.trim().length > 0)
+      primary_image: finalPrimaryImage,
+      images: cleanImages
     };
 
     try {
       setFormSubmitting(true);
       if (editingProduct) {
         await api.products.update(editingProduct.id, payload);
-        setFormSuccess('Product updated successfully.');
+        setFormSuccess('Product price and photos updated successfully.');
       } else {
         await api.products.create(payload);
         setFormSuccess('Product created successfully.');
@@ -572,14 +602,32 @@ export const AdminProducts: React.FC = () => {
                     </label>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2.5">
                     {images.map((img, idx) => (
-                      <div key={idx} className="relative group w-20 h-20 rounded border bg-gray-50 p-1">
+                      <div key={idx} className="relative group w-24 h-24 rounded-lg border-2 bg-gray-50 p-1 flex flex-col items-center justify-center overflow-hidden shadow-sm">
                         <img src={img} alt={`Upload ${idx}`} className="w-full h-full object-contain" />
+                        {idx === 0 ? (
+                          <span className="absolute bottom-0 inset-x-0 bg-emerald-600 text-white text-[9px] font-bold text-center py-0.5 tracking-wide">
+                            ★ Main Photo
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const reordered = [img, ...images.filter((_, i) => i !== idx)];
+                              setImages(reordered);
+                            }}
+                            className="absolute bottom-0 inset-x-0 bg-gray-900/80 hover:bg-gray-900 text-white text-[9px] font-semibold text-center py-0.5 transition"
+                            title="Click to set as Main Photo"
+                          >
+                            Set Main
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setImages(images.filter((_, i) => i !== idx))}
-                          className="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full p-0.5 shadow"
+                          className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-1 shadow hover:bg-red-700 transition"
+                          title="Remove image"
                         >
                           <X size={12} />
                         </button>

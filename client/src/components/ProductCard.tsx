@@ -52,7 +52,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     await toggleWishlist(product);
   };
 
-  const imageUrl = product.primary_image || (product.images && product.images[0]?.image_url) || 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80';
+  const imageUrl = product.primary_image || 
+    (product.images && product.images.length > 0 ? (typeof product.images[0] === 'string' ? product.images[0] : product.images[0]?.image_url) : '') || 
+    'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80';
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 flex flex-col justify-between hover:shadow-amazon-hover transition-all duration-200 relative group text-left">

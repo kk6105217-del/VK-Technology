@@ -362,17 +362,19 @@ export const api = {
           };
         }
         const fallback = filterFallbackProducts(params);
+        const filteredFallback = fallback.products.filter(fp => !custom.some(cp => cp.id === fp.id));
         return {
-          products: [...custom, ...fallback.products],
-          pagination: { ...fallback.pagination, total: fallback.pagination.total + custom.length }
+          products: [...custom, ...filteredFallback],
+          pagination: { ...fallback.pagination, total: custom.length + filteredFallback.length }
         };
       } catch (err) {
         console.warn('API /products unavailable, falling back to local products:', err);
         const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
         const fallback = filterFallbackProducts(params);
+        const filteredFallback = fallback.products.filter(fp => !custom.some(cp => cp.id === fp.id));
         return {
-          products: [...custom, ...fallback.products],
-          pagination: { ...fallback.pagination, total: fallback.pagination.total + custom.length }
+          products: [...custom, ...filteredFallback],
+          pagination: { ...fallback.pagination, total: custom.length + filteredFallback.length }
         };
       }
     },
@@ -394,7 +396,7 @@ export const api = {
       const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
       let all = serverProducts.length > 0 
         ? [...custom, ...serverProducts.filter(sp => !custom.some(cp => cp.id === sp.id))]
-        : [...custom, ...FALLBACK_PRODUCTS];
+        : [...custom, ...FALLBACK_PRODUCTS.filter(fp => !custom.some(cp => cp.id === fp.id))];
 
       if (params.search) {
         const s = params.search.toLowerCase();
@@ -414,11 +416,17 @@ export const api = {
 
       try {
         const res = await request<{ product: Product }>(`/products/${slug}`);
-        if (res?.product) return res;
+        if (res?.product) {
+          const override = custom.find(cp => cp.id === res.product.id);
+          return { product: override || res.product };
+        }
         throw new Error('Product not found');
       } catch (err) {
         const found = FALLBACK_PRODUCTS.find(p => p.slug === slug);
-        if (found) return { product: found };
+        if (found) {
+          const customOverride = custom.find(cp => cp.id === found.id);
+          return { product: customOverride || found };
+        }
         throw err;
       }
     },
@@ -459,7 +467,7 @@ export const api = {
         rating_avg: 5.0,
         rating_count: 1,
         view_count: 0,
-        primary_image: product.images?.[0] || '/logo.png',
+        primary_image: product.images?.[0] || product.primary_image || '/logo.png',
         images: (product.images || []).map((img: string, idx: number) => ({
           id: Date.now() + idx,
           product_id: newId,
@@ -491,10 +499,78 @@ export const api = {
 
       const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
       const idx = custom.findIndex(p => p.id === id);
-      if (idx !== -1) {
-        custom[idx] = { ...custom[idx], ...product };
-        localStorage.setItem('vk_custom_products', JSON.stringify(custom));
+
+      let imagesArray: any[] | undefined = undefined;
+      let primaryImg: string | undefined = product.primary_image;
+
+      if (Array.isArray(product.images) && product.images.length > 0) {
+        imagesArray = product.images.map((img: any, i: number) => {
+          const u = typeof img === 'string' ? img : (img.image_url || img.url || '');
+          return {
+            id: Date.now() + i,
+            product_id: id,
+            image_url: u,
+            is_primary: i === 0,
+            sort_order: i
+          };
+        });
+        if (!primaryImg && imagesArray && imagesArray[0]) {
+          primaryImg = imagesArray[0].image_url;
+        }
+      } else if (primaryImg) {
+        imagesArray = [{
+          id: Date.now(),
+          product_id: id,
+          image_url: primaryImg,
+          is_primary: true,
+          sort_order: 0
+        }];
       }
+
+      const regPrice = Number(product.regular_price);
+      const discPrice = (product.discounted_price !== undefined && product.discounted_price !== null && product.discounted_price !== '') 
+        ? Number(product.discounted_price) 
+        : null;
+
+      if (idx !== -1) {
+        custom[idx] = {
+          ...custom[idx],
+          ...product,
+          regular_price: !isNaN(regPrice) ? regPrice : custom[idx].regular_price,
+          discounted_price: discPrice,
+          ...(primaryImg ? { primary_image: primaryImg } : {}),
+          ...(imagesArray ? { images: imagesArray } : {})
+        };
+      } else {
+        const fallbackItem = FALLBACK_PRODUCTS.find(p => p.id === id);
+        if (fallbackItem) {
+          const updatedItem: Product = {
+            ...fallbackItem,
+            ...product,
+            regular_price: !isNaN(regPrice) ? regPrice : fallbackItem.regular_price,
+            discounted_price: discPrice,
+            primary_image: primaryImg || fallbackItem.primary_image,
+            images: imagesArray || fallbackItem.images
+          };
+          custom.unshift(updatedItem);
+        } else {
+          custom.unshift({
+            id,
+            name: product.name || 'Product',
+            slug: product.slug || `product-${id}`,
+            sku: product.sku || `VK-${id}`,
+            category_id: Number(product.category_id || 1),
+            description: product.description || '',
+            regular_price: !isNaN(regPrice) ? regPrice : 0,
+            discounted_price: discPrice,
+            stock_quantity: Number(product.stock_quantity || 0),
+            primary_image: primaryImg || '/logo.png',
+            images: imagesArray || [],
+            ...product
+          });
+        }
+      }
+      localStorage.setItem('vk_custom_products', JSON.stringify(custom));
       return { message: 'Product updated successfully.' };
     },
     updateStock: async (id: number, stock_quantity: number) => {

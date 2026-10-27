@@ -59,7 +59,9 @@ export const ProductDetailPage: React.FC = () => {
         setProduct(prod);
 
         // Pick primary image
-        const prim = prod.images?.find(i => i.is_primary)?.image_url || prod.images?.[0]?.image_url || prod.primary_image || '';
+        const prim = (prod.images && prod.images.length > 0)
+          ? (prod.images.find((i: any) => i?.is_primary)?.image_url || (typeof prod.images[0] === 'string' ? prod.images[0] : prod.images[0]?.image_url) || prod.primary_image || '')
+          : (prod.primary_image || '');
         setSelectedImage(prim);
         setQuantity(1);
 
@@ -188,7 +190,7 @@ export const ProductDetailPage: React.FC = () => {
   };
 
   const imagesList = product.images && product.images.length > 0
-    ? product.images.map(i => i.image_url)
+    ? product.images.map((i: any) => typeof i === 'string' ? i : (i.image_url || i.url)).filter(Boolean)
     : [product.primary_image || 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80'];
 
   return (
