@@ -75,6 +75,7 @@ export interface Product {
   images?: ProductImage[];
   reviews?: Review[];
   relatedProducts?: Product[];
+  created_at?: string;
 }
 
 export interface CartItem {

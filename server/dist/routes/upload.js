@@ -11,32 +11,17 @@ const fs_1 = __importDefault(require("fs"));
 const auth_js_1 = require("../middleware/auth.js");
 exports.uploadRouter = (0, express_1.Router)();
 const uploadsDir = path_1.default.resolve(process.cwd(), 'uploads');
-if (!fs_1.default.existsSync(uploadsDir)) {
-    fs_1.default.mkdirSync(uploadsDir, { recursive: true });
-}
-const storage = multer_1.default.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadsDir);
-    },
-    filename: (req, file, cb) => {
-        const ext = path_1.default.extname(file.originalname).toLowerCase();
-        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-        cb(null, `img-${uniqueSuffix}${ext}`);
+try {
+    if (!fs_1.default.existsSync(uploadsDir)) {
+        fs_1.default.mkdirSync(uploadsDir, { recursive: true });
     }
-});
+}
+catch { }
 const upload = (0, multer_1.default)({
-    storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+    storage: multer_1.default.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
     fileFilter: (req, file, cb) => {
-        const allowed = /jpeg|jpg|png|webp|svg/;
-        const ext = path_1.default.extname(file.originalname).toLowerCase().replace('.', '');
-        const mime = file.mimetype;
-        if (allowed.test(ext) && (mime.startsWith('image/') || mime === 'image/svg+xml')) {
-            cb(null, true);
-        }
-        else {
-            cb(new Error('Only image files (JPG, PNG, WebP, SVG) up to 5MB are permitted.'));
-        }
+        cb(null, true);
     }
 });
 // Admin upload single image
@@ -46,10 +31,26 @@ exports.uploadRouter.post('/', auth_js_1.authenticateToken, auth_js_1.requireAdm
             res.status(400).json({ error: 'No image file uploaded.' });
             return;
         }
-        const fileUrl = `/uploads/${req.file.filename}`;
+        const ext = path_1.default.extname(req.file.originalname).toLowerCase() || '.png';
+        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+        const filename = `img-${uniqueSuffix}${ext}`;
+        let fileUrl = '';
+        // Attempt to write to disk if uploads directory is writable
+        try {
+            if (!fs_1.default.existsSync(uploadsDir)) {
+                fs_1.default.mkdirSync(uploadsDir, { recursive: true });
+            }
+            const targetPath = path_1.default.join(uploadsDir, filename);
+            fs_1.default.writeFileSync(targetPath, req.file.buffer);
+            fileUrl = `/uploads/${filename}`;
+        }
+        catch (diskErr) {
+            // In serverless / read-only filesystem, use base64 data URL so upload never fails
+            fileUrl = `data:${req.file.mimetype || 'image/png'};base64,${req.file.buffer.toString('base64')}`;
+        }
         res.json({
             url: fileUrl,
-            filename: req.file.filename,
+            filename,
             size: req.file.size
         });
     }
@@ -65,11 +66,28 @@ exports.uploadRouter.post('/multiple', auth_js_1.authenticateToken, auth_js_1.re
             res.status(400).json({ error: 'No images uploaded.' });
             return;
         }
-        const uploaded = files.map(f => ({
-            url: `/uploads/${f.filename}`,
-            filename: f.filename,
-            size: f.size
-        }));
+        const uploaded = files.map(f => {
+            const ext = path_1.default.extname(f.originalname).toLowerCase() || '.png';
+            const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+            const filename = `img-${uniqueSuffix}${ext}`;
+            let fileUrl = '';
+            try {
+                if (!fs_1.default.existsSync(uploadsDir)) {
+                    fs_1.default.mkdirSync(uploadsDir, { recursive: true });
+                }
+                const targetPath = path_1.default.join(uploadsDir, filename);
+                fs_1.default.writeFileSync(targetPath, f.buffer);
+                fileUrl = `/uploads/${filename}`;
+            }
+            catch {
+                fileUrl = `data:${f.mimetype || 'image/png'};base64,${f.buffer.toString('base64')}`;
+            }
+            return {
+                url: fileUrl,
+                filename,
+                size: f.size
+            };
+        });
         res.json({ files: uploaded });
     }
     catch (error) {

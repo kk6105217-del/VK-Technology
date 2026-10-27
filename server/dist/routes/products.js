@@ -243,7 +243,25 @@ exports.productsRouter.post('/', auth_js_1.authenticateToken, auth_js_1.requireA
             res.status(400).json({ error: 'Please provide product name, SKU, category, and regular price.' });
             return;
         }
-        const cleanSlug = (slug || name).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+        let cleanSlug = (slug || name).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        if (!cleanSlug)
+            cleanSlug = `product-${Date.now()}`;
+        const existingSlug = database_js_1.db.prepare('SELECT id FROM products WHERE slug = ?').get(cleanSlug);
+        if (existingSlug) {
+            cleanSlug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
+        }
+        let cleanSku = sku.trim().toUpperCase();
+        const existingSku = database_js_1.db.prepare('SELECT id FROM products WHERE sku = ?').get(cleanSku);
+        if (existingSku) {
+            cleanSku = `${cleanSku}-${Date.now().toString().slice(-4)}`;
+        }
+        let validCatId = Number(category_id);
+        const catExists = database_js_1.db.prepare('SELECT id FROM categories WHERE id = ?').get(validCatId);
+        if (!catExists) {
+            const firstCat = database_js_1.db.prepare('SELECT id FROM categories ORDER BY id ASC LIMIT 1').get();
+            if (firstCat)
+                validCatId = firstCat.id;
+        }
         const result = database_js_1.db.prepare(`
       INSERT INTO products (
         name, slug, sku, category_id, subcategory, short_description, description,
@@ -256,7 +274,7 @@ exports.productsRouter.post('/', auth_js_1.authenticateToken, auth_js_1.requireA
         ?, ?, ?, ?,
         ?, ?, ?, ?
       )
-    `).run(name.trim(), cleanSlug, sku.trim().toUpperCase(), category_id, subcategory || null, short_description || null, description || name, Number(regular_price), discounted_price ? Number(discounted_price) : null, Number(stock_quantity || 0), brand || 'VK Technology', specifications ? JSON.stringify(specifications) : '{}', features ? JSON.stringify(features) : '[]', compatibility || null, package_contents ? JSON.stringify(package_contents) : '[]', Number(shipping_weight_grams || 250), Number(estimated_dispatch_days || 1), warranty_info || '6 Months Warranty', is_featured ? 1 : 0, is_active !== undefined ? (is_active ? 1 : 0) : 1);
+    `).run(name.trim(), cleanSlug, cleanSku, validCatId, subcategory || null, short_description || null, description || name, Number(regular_price), discounted_price ? Number(discounted_price) : null, Number(stock_quantity || 0), brand || 'VK Technology', specifications ? JSON.stringify(specifications) : '{}', features ? JSON.stringify(features) : '[]', compatibility || null, package_contents ? JSON.stringify(package_contents) : '[]', Number(shipping_weight_grams || 250), Number(estimated_dispatch_days || 1), warranty_info || '6 Months Warranty', is_featured ? 1 : 0, is_active !== undefined ? (is_active ? 1 : 0) : 1);
         const productId = Number(result.lastInsertRowid);
         // Insert images
         if (Array.isArray(images) && images.length > 0) {

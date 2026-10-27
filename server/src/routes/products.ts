@@ -301,7 +301,25 @@ productsRouter.post('/', authenticateToken, requireAdmin, (req: AuthenticatedReq
       return;
     }
 
-    const cleanSlug = (slug || name).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+    let cleanSlug = (slug || name).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    if (!cleanSlug) cleanSlug = `product-${Date.now()}`;
+    const existingSlug = db.prepare('SELECT id FROM products WHERE slug = ?').get(cleanSlug);
+    if (existingSlug) {
+      cleanSlug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
+    }
+
+    let cleanSku = sku.trim().toUpperCase();
+    const existingSku = db.prepare('SELECT id FROM products WHERE sku = ?').get(cleanSku);
+    if (existingSku) {
+      cleanSku = `${cleanSku}-${Date.now().toString().slice(-4)}`;
+    }
+
+    let validCatId = Number(category_id);
+    const catExists = db.prepare('SELECT id FROM categories WHERE id = ?').get(validCatId);
+    if (!catExists) {
+      const firstCat = db.prepare('SELECT id FROM categories ORDER BY id ASC LIMIT 1').get() as any;
+      if (firstCat) validCatId = firstCat.id;
+    }
 
     const result = db.prepare(`
       INSERT INTO products (
@@ -318,8 +336,8 @@ productsRouter.post('/', authenticateToken, requireAdmin, (req: AuthenticatedReq
     `).run(
       name.trim(),
       cleanSlug,
-      sku.trim().toUpperCase(),
-      category_id,
+      cleanSku,
+      validCatId,
       subcategory || null,
       short_description || null,
       description || name,

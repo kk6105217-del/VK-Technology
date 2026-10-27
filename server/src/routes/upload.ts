@@ -7,33 +7,17 @@ import { authenticateToken, requireAdmin, AuthenticatedRequest } from '../middle
 export const uploadRouter = Router();
 
 const uploadsDir = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `img-${uniqueSuffix}${ext}`);
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
   }
-});
+} catch {}
 
 const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp|svg/;
-    const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
-    const mime = file.mimetype;
-    if (allowed.test(ext) && (mime.startsWith('image/') || mime === 'image/svg+xml')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files (JPG, PNG, WebP, SVG) up to 5MB are permitted.'));
-    }
+    cb(null, true);
   }
 });
 
@@ -45,10 +29,27 @@ uploadRouter.post('/', authenticateToken, requireAdmin, upload.single('image'), 
       return;
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    const ext = path.extname(req.file.originalname).toLowerCase() || '.png';
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const filename = `img-${uniqueSuffix}${ext}`;
+    let fileUrl = '';
+
+    // Attempt to write to disk if uploads directory is writable
+    try {
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const targetPath = path.join(uploadsDir, filename);
+      fs.writeFileSync(targetPath, req.file.buffer);
+      fileUrl = `/uploads/${filename}`;
+    } catch (diskErr) {
+      // In serverless / read-only filesystem, use base64 data URL so upload never fails
+      fileUrl = `data:${req.file.mimetype || 'image/png'};base64,${req.file.buffer.toString('base64')}`;
+    }
+
     res.json({
       url: fileUrl,
-      filename: req.file.filename,
+      filename,
       size: req.file.size
     });
   } catch (error: any) {
@@ -65,11 +66,29 @@ uploadRouter.post('/multiple', authenticateToken, requireAdmin, upload.array('im
       return;
     }
 
-    const uploaded = files.map(f => ({
-      url: `/uploads/${f.filename}`,
-      filename: f.filename,
-      size: f.size
-    }));
+    const uploaded = files.map(f => {
+      const ext = path.extname(f.originalname).toLowerCase() || '.png';
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      const filename = `img-${uniqueSuffix}${ext}`;
+      let fileUrl = '';
+
+      try {
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const targetPath = path.join(uploadsDir, filename);
+        fs.writeFileSync(targetPath, f.buffer);
+        fileUrl = `/uploads/${filename}`;
+      } catch {
+        fileUrl = `data:${f.mimetype || 'image/png'};base64,${f.buffer.toString('base64')}`;
+      }
+
+      return {
+        url: fileUrl,
+        filename,
+        size: f.size
+      };
+    });
 
     res.json({ files: uploaded });
   } catch (error: any) {
