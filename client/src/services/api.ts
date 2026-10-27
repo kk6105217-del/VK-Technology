@@ -354,27 +354,37 @@ export const api = {
         }>(`/products?${query.toString()}`);
 
         const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
+        const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_products') || '[]');
+
         if (Array.isArray(res?.products) && res.products.length > 0) {
-          const combined = [...custom, ...res.products.filter(sp => !custom.some(cp => cp.id === sp.id))];
+          const combined = [...custom, ...res.products.filter(sp => !custom.some(cp => cp.id === sp.id))]
+            .filter(p => !deleted.includes(Number(p.id)));
           return {
             products: combined,
             pagination: { ...res.pagination, total: combined.length }
           };
         }
         const fallback = filterFallbackProducts(params);
-        const filteredFallback = fallback.products.filter(fp => !custom.some(cp => cp.id === fp.id));
+        const filteredFallback = fallback.products
+          .filter(fp => !custom.some(cp => cp.id === fp.id))
+          .filter(p => !deleted.includes(Number(p.id)));
+        const combinedFallback = [...custom.filter(p => !deleted.includes(Number(p.id))), ...filteredFallback];
         return {
-          products: [...custom, ...filteredFallback],
-          pagination: { ...fallback.pagination, total: custom.length + filteredFallback.length }
+          products: combinedFallback,
+          pagination: { ...fallback.pagination, total: combinedFallback.length }
         };
       } catch (err) {
         console.warn('API /products unavailable, falling back to local products:', err);
         const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
+        const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_products') || '[]');
         const fallback = filterFallbackProducts(params);
-        const filteredFallback = fallback.products.filter(fp => !custom.some(cp => cp.id === fp.id));
+        const filteredFallback = fallback.products
+          .filter(fp => !custom.some(cp => cp.id === fp.id))
+          .filter(p => !deleted.includes(Number(p.id)));
+        const combinedFallback = [...custom.filter(p => !deleted.includes(Number(p.id))), ...filteredFallback];
         return {
-          products: [...custom, ...filteredFallback],
-          pagination: { ...fallback.pagination, total: custom.length + filteredFallback.length }
+          products: combinedFallback,
+          pagination: { ...fallback.pagination, total: combinedFallback.length }
         };
       }
     },
@@ -394,9 +404,13 @@ export const api = {
       }
 
       const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
+      const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_products') || '[]');
+
       let all = serverProducts.length > 0 
         ? [...custom, ...serverProducts.filter(sp => !custom.some(cp => cp.id === sp.id))]
         : [...custom, ...FALLBACK_PRODUCTS.filter(fp => !custom.some(cp => cp.id === fp.id))];
+
+      all = all.filter(p => !deleted.includes(Number(p.id)));
 
       if (params.search) {
         const s = params.search.toLowerCase();
@@ -410,13 +424,18 @@ export const api = {
       return { products: all };
     },
     getBySlug: async (slug: string) => {
+      const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_products') || '[]');
       const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
       const customFound = custom.find(p => p.slug === slug);
-      if (customFound) return { product: customFound };
+      if (customFound) {
+        if (deleted.includes(Number(customFound.id))) throw new Error('Product not found');
+        return { product: customFound };
+      }
 
       try {
         const res = await request<{ product: Product }>(`/products/${slug}`);
         if (res?.product) {
+          if (deleted.includes(Number(res.product.id))) throw new Error('Product not found');
           const override = custom.find(cp => cp.id === res.product.id);
           return { product: override || res.product };
         }
@@ -424,6 +443,7 @@ export const api = {
       } catch (err) {
         const found = FALLBACK_PRODUCTS.find(p => p.slug === slug);
         if (found) {
+          if (deleted.includes(Number(found.id))) throw new Error('Product not found');
           const customOverride = custom.find(cp => cp.id === found.id);
           return { product: customOverride || found };
         }
@@ -610,10 +630,19 @@ export const api = {
         await request<{ message: string }>(`/products/${id}`, {
           method: 'DELETE'
         });
-      } catch (err) {}
+      } catch (err) {
+        console.warn('Server product delete failed or offline:', err);
+      }
+
+      // Track deleted product ID so fallback catalog items also disappear permanently
+      const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_products') || '[]');
+      if (!deleted.includes(Number(id))) {
+        deleted.push(Number(id));
+        localStorage.setItem('vk_deleted_products', JSON.stringify(deleted));
+      }
 
       const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
-      const filtered = custom.filter(p => p.id !== id);
+      const filtered = custom.filter(p => Number(p.id) !== Number(id));
       localStorage.setItem('vk_custom_products', JSON.stringify(filtered));
       return { message: 'Product deleted successfully.' };
     },

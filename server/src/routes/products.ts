@@ -556,9 +556,18 @@ productsRouter.patch('/:id/status', authenticateToken, requireAdmin, (req: Authe
 // Admin: Delete product
 productsRouter.delete('/:id', authenticateToken, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
   try {
-    db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
+    const productId = req.params.id;
+    try {
+      db.prepare('DELETE FROM product_images WHERE product_id = ?').run(productId);
+      db.prepare('DELETE FROM cart_items WHERE product_id = ?').run(productId);
+      db.prepare('DELETE FROM wishlist WHERE product_id = ?').run(productId);
+      db.prepare('DELETE FROM reviews WHERE product_id = ?').run(productId);
+    } catch (e) {}
+
+    db.prepare('DELETE FROM products WHERE id = ?').run(productId);
     res.json({ message: 'Product deleted successfully.' });
   } catch (error: any) {
-    res.status(500).json({ error: 'Failed to delete product.' });
+    console.error('Delete product error:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete product.' });
   }
 });
