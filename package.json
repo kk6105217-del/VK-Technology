@@ -13,7 +13,7 @@
     "dev:client": "npm --prefix client run dev",
     "build:server": "npm --prefix server run build",
     "build:client": "npm --prefix client run build",
-    "build": "npm run build:client && npm run build:server && node -e \"const fs=require('fs'); try { fs.cpSync('client/dist', 'server/dist/public', { recursive: true }); } catch (e) {}\"",
+    "build": "npm run build:client && npm run build:server && node scripts/copy-dist.cjs",
     "start": "npm --prefix server run start",
     "test": "npm --prefix server run test",
     "install:all": "npm install && npm --prefix server install && npm --prefix client install"
