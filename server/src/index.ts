@@ -89,7 +89,11 @@ const healthHandler = (_req: express.Request, res: express.Response) => {
     adminEmail: config.adminEmail,
     location: config.ownerLocation,
     currency: config.currency,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    clientDistFound: clientDist || null,
+    cwd: process.cwd(),
+    dirname: __dirname,
+    existsPublic: fs.existsSync(path.resolve(__dirname, 'public'))
   });
 };
 app.get('/api/health', healthHandler);
@@ -122,6 +126,27 @@ app.get(['/api/openapi.json', '/openapi.json', '/api/docs.json'], (_req, res) =>
   res.json(openApiSpec);
 });
 
+// Embedded storefront HTML fallback for seamless 200 response on serverless
+const embeddedIndexHtml = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VK Technology – DIY Electronics, Robotics, IoT & Engineering Project Kits</title>
+    <meta name="description" content="VK Technology is India's premier online store for DIY electronics, Arduino kits, ESP32, robotics components, sensors, drone modules, and student engineering project kits with express delivery across India." />
+    <meta name="keywords" content="VK Technology, DIY electronics India, Arduino kits, ESP32 IoT, sensors, drone parts, robotics, student project kits" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/assets/index-1wt0GaH1.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CY0ZJ8iy.css">
+  </head>
+  <body class="bg-gray-100 text-gray-900 font-sans antialiased selection:bg-amber-400 selection:text-gray-950">
+    <div id="root"></div>
+  </body>
+</html>`;
+
 // Production: Serve React client build if present
 const possibleDistPaths = [
   path.resolve(__dirname, 'public'),
@@ -129,28 +154,37 @@ const possibleDistPaths = [
   path.resolve(process.cwd(), 'client/dist'),
   path.resolve(process.cwd(), '../client/dist'),
   path.resolve(__dirname, '../../client/dist'),
-  path.resolve(__dirname, '../client/dist')
+  path.resolve(__dirname, '../client/dist'),
+  path.resolve('/var/task/server/dist/public'),
+  path.resolve('/var/task/client/dist')
 ];
 const clientDist = possibleDistPaths.find(p => fs.existsSync(p));
 if (clientDist) {
   app.use(express.static(clientDist));
-  app.get('*', (req, res, next) => {
-    if (
-      req.path.startsWith('/api') ||
-      req.path.startsWith('/uploads') ||
-      req.path.startsWith('/events') ||
-      req.path.startsWith('/health') ||
-      req.path.startsWith('/upi')
-    ) {
-      return next();
-    }
+  app.use('/assets', express.static(path.join(clientDist, 'assets')));
+}
+
+app.get('*', (req, res, next) => {
+  if (
+    req.path.startsWith('/api') ||
+    req.path.startsWith('/uploads') ||
+    req.path.startsWith('/events') ||
+    req.path.startsWith('/health') ||
+    req.path.startsWith('/upi')
+  ) {
+    return next();
+  }
+
+  if (clientDist) {
     const indexHtml = path.join(clientDist, 'index.html');
     if (fs.existsSync(indexHtml)) {
       return res.sendFile(indexHtml);
     }
-    next();
-  });
-}
+  }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(embeddedIndexHtml);
+});
 
 // Proxy / communication endpoint with internal Python backend service
 app.get('/api/internal/backend-health', async (req, res) => {
