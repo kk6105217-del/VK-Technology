@@ -16,34 +16,10 @@
       "root": "server",
       "framework": "express",
       "entrypoint": "dist/index.js",
-      "buildCommand": "npm run build",
-      "bindings": [
-        {
-          "type": "service",
-          "service": "backend",
-          "format": "url",
-          "env": "BACKEND_SERVICE_URL"
-        }
-      ]
-    },
-    "backend": {
-      "root": "backend",
-      "framework": "fastapi",
-      "entrypoint": "main.py"
-    },
-    "frontend": {
-      "root": "frontend",
-      "framework": "vite",
-      "outputDirectory": "dist"
+      "buildCommand": "npm run build"
     }
   },
   "rewrites": [
-    {
-      "source": "/api/v1/(.*)",
-      "destination": {
-        "service": "backend"
-      }
-    },
     {
       "source": "/api/(.*)",
       "destination": {
