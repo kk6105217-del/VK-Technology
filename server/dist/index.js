@@ -118,6 +118,8 @@ app.get(['/api/openapi.json', '/openapi.json', '/api/docs.json'], (_req, res) =>
 });
 // Production: Serve React client build if present
 const possibleDistPaths = [
+    path_1.default.resolve(__dirname, 'public'),
+    path_1.default.resolve(process.cwd(), 'server/dist/public'),
     path_1.default.resolve(process.cwd(), 'client/dist'),
     path_1.default.resolve(process.cwd(), '../client/dist'),
     path_1.default.resolve(__dirname, '../../client/dist'),
@@ -127,10 +129,18 @@ const clientDist = possibleDistPaths.find(p => fs_1.default.existsSync(p));
 if (clientDist) {
     app.use(express_1.default.static(clientDist));
     app.get('*', (req, res, next) => {
-        if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+        if (req.path.startsWith('/api') ||
+            req.path.startsWith('/uploads') ||
+            req.path.startsWith('/events') ||
+            req.path.startsWith('/health') ||
+            req.path.startsWith('/upi')) {
             return next();
         }
-        res.sendFile(path_1.default.join(clientDist, 'index.html'));
+        const indexHtml = path_1.default.join(clientDist, 'index.html');
+        if (fs_1.default.existsSync(indexHtml)) {
+            return res.sendFile(indexHtml);
+        }
+        next();
     });
 }
 // Proxy / communication endpoint with internal Python backend service

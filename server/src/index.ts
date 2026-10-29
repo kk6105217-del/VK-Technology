@@ -124,6 +124,8 @@ app.get(['/api/openapi.json', '/openapi.json', '/api/docs.json'], (_req, res) =>
 
 // Production: Serve React client build if present
 const possibleDistPaths = [
+  path.resolve(__dirname, 'public'),
+  path.resolve(process.cwd(), 'server/dist/public'),
   path.resolve(process.cwd(), 'client/dist'),
   path.resolve(process.cwd(), '../client/dist'),
   path.resolve(__dirname, '../../client/dist'),
@@ -133,10 +135,20 @@ const clientDist = possibleDistPaths.find(p => fs.existsSync(p));
 if (clientDist) {
   app.use(express.static(clientDist));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/uploads') ||
+      req.path.startsWith('/events') ||
+      req.path.startsWith('/health') ||
+      req.path.startsWith('/upi')
+    ) {
       return next();
     }
-    res.sendFile(path.join(clientDist, 'index.html'));
+    const indexHtml = path.join(clientDist, 'index.html');
+    if (fs.existsSync(indexHtml)) {
+      return res.sendFile(indexHtml);
+    }
+    next();
   });
 }
 
