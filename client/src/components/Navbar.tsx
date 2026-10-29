@@ -278,7 +278,7 @@ export const Navbar: React.FC<NavbarProps> = ({ isMobileOpen = false, setIsMobil
                   >
                     Returns & Replacement
                   </Link>
-                  {isAdmin ? (
+                  {isAdmin && (
                     <Link
                       to="/admin"
                       onClick={() => setOpen(false)}
@@ -286,14 +286,6 @@ export const Navbar: React.FC<NavbarProps> = ({ isMobileOpen = false, setIsMobil
                     >
                       <ShieldCheck size={16} className="mr-1.5" />
                       Admin Control Center
-                    </Link>
-                  ) : (
-                    <Link
-                      to="/admin/login"
-                      onClick={() => setOpen(false)}
-                      className="block py-1.5 text-gray-400 hover:text-gray-600 text-xs"
-                    >
-                      Admin Login
                     </Link>
                   )}
                 </div>

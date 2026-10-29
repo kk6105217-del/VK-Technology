@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Cpu, Lock, Mail, User, Phone, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Cpu, Lock, Mail, User, Phone, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const RegisterPage: React.FC = () => {

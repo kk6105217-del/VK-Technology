@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Cpu, Lock, Mail, AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Cpu, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
@@ -100,16 +100,6 @@ export const LoginPage: React.FC = () => {
         <p className="text-[11px] text-gray-500 mt-4 leading-relaxed">
           By continuing, you agree to VK Technology's <Link to="/policy/terms-conditions" className="text-vk-blue hover:underline">Conditions of Use</Link> and <Link to="/policy/privacy-policy" className="text-vk-blue hover:underline">Privacy Notice</Link>.
         </p>
-
-        <div className="mt-4 pt-3 border-t border-gray-200">
-          <Link
-            to="/admin/login"
-            className="text-xs text-gray-500 hover:text-gray-800 flex items-center justify-center space-x-1"
-          >
-            <ShieldCheck size={13} className="text-amber-500" />
-            <span>Store Owner & Administrator Portal</span>
-          </Link>
-        </div>
       </div>
 
       {/* New to VK Technology divider */}

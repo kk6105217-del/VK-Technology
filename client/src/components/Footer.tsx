@@ -221,10 +221,6 @@ export const Footer: React.FC = () => {
             <Link to="/track" className="hover:text-white hover:underline">
               Order Tracking
             </Link>
-            <Link to="/admin/login" className="hover:text-amber-400 hover:underline flex items-center">
-              <ShieldCheck size={12} className="mr-0.5" />
-              Admin Login
-            </Link>
           </div>
 
           <p className="text-gray-400 leading-relaxed max-w-2xl mx-auto">

@@ -442,8 +442,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
                     )}
                   </Link>
 
-                  {/* Admin Direct Portal Link */}
-                  {isAdmin ? (
+                  {/* Admin Direct Portal Link - Only for authenticated administrators */}
+                  {isAdmin && (
                     <div className="mt-2 pt-2 border-t border-gray-100 bg-amber-50/50">
                       <div className="px-4 py-1 text-[11px] font-bold text-amber-900 uppercase tracking-wider">
                         Management
@@ -455,17 +455,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
                       >
                         <ShieldCheck size={14} className="mr-1.5 text-amber-600" />
                         Admin Dashboard & Store Controls
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <Link
-                        to="/admin/login"
-                        onClick={() => setIsAccountOpen(false)}
-                        className="block px-4 py-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-50 flex items-center"
-                      >
-                        <ShieldCheck size={14} className="mr-1.5 text-gray-400" />
-                        Store Owner / Admin Login
                       </Link>
                     </div>
                   )}
