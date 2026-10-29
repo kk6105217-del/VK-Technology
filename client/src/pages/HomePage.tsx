@@ -19,6 +19,7 @@ import { StarRating } from '../components/StarRating';
 import { api } from '../services/api';
 import { Product, Category } from '../types';
 import { getCategoryIcon } from '../components/Navbar';
+import { useCatalogSync } from '../hooks/useCatalogSync';
 
 export const HomePage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -28,34 +29,38 @@ export const HomePage: React.FC = () => {
   const [newsletterSubmitted, setNewsletterSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        const [catsRes, prodsRes] = await Promise.all([
-          api.categories.getAll(),
-          api.products.getAll({ limit: 40 })
-        ]);
+  const loadData = async () => {
+    try {
+      const [catsRes, prodsRes] = await Promise.all([
+        api.categories.getAll(),
+        api.products.getAll({ limit: 40 })
+      ]);
 
-        setCategories(Array.isArray(catsRes?.categories) ? catsRes.categories : []);
-        setAllProducts(Array.isArray(prodsRes?.products) ? prodsRes.products : []);
+      setCategories(Array.isArray(catsRes?.categories) ? catsRes.categories : []);
+      setAllProducts(Array.isArray(prodsRes?.products) ? prodsRes.products : []);
 
-        // Load recently viewed from localStorage
-        const stored = localStorage.getItem('vk_recently_viewed');
-        if (stored) {
-          try {
-            setRecentlyViewed(JSON.parse(stored).slice(0, 6));
-          } catch (e) {}
-        }
-      } catch (err) {
-        console.error('Error fetching homepage data:', err);
-      } finally {
-        setIsLoading(false);
+      const stored = localStorage.getItem('vk_recently_viewed');
+      if (stored) {
+        try {
+          setRecentlyViewed(JSON.parse(stored).slice(0, 6));
+        } catch (e) {}
       }
-    };
+    } catch (err) {
+      console.error('Error fetching homepage data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchData();
+  useEffect(() => {
+    setIsLoading(true);
+    loadData();
   }, []);
+
+  // Real-time live catalog sync across devices
+  useCatalogSync(() => {
+    loadData();
+  });
 
   // Filter sections
   const safeProducts = Array.isArray(allProducts) ? allProducts : [];

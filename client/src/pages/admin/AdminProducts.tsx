@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { Product, Category } from '../../types';
+import { useCatalogSync } from '../../hooks/useCatalogSync';
 
 export const AdminProducts: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -62,6 +63,11 @@ export const AdminProducts: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Real-time synchronization: automatically reload if any product updates
+  useCatalogSync(() => {
+    loadData();
+  });
 
   const loadData = async () => {
     try {

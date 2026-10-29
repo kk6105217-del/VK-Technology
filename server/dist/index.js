@@ -23,6 +23,8 @@ const settings_js_1 = require("./routes/settings.js");
 const upload_js_1 = require("./routes/upload.js");
 const contact_js_1 = require("./routes/contact.js");
 const upi_js_1 = require("./routes/upi.js");
+const events_js_1 = require("./services/events.js");
+const openapi_js_1 = require("./openapi.js");
 const app = (0, express_1.default)();
 // Initialize database & seed defaults safely
 try {
@@ -58,22 +60,28 @@ app.get('/upi-qr-code.jpg', (req, res) => {
         return res.sendFile(file);
     res.status(404).send('Not Found');
 });
-// API Routes
-app.use('/api/auth', auth_js_1.authRouter);
-app.use('/api/categories', categories_js_1.categoriesRouter);
-app.use('/api/products', products_js_1.productsRouter);
-app.use('/api/orders', orders_js_1.ordersRouter);
-app.use('/api/cart', cart_js_1.cartRouter);
-app.use('/api/wishlist', wishlist_js_1.wishlistRouter);
-app.use('/api/coupons', coupons_js_1.couponsRouter);
-app.use('/api/reviews', reviews_js_1.reviewsRouter);
-app.use('/api/banners', banners_js_1.bannersRouter);
-app.use('/api/settings', settings_js_1.settingsRouter);
-app.use('/api/upload', upload_js_1.uploadRouter);
-app.use('/api/contact', contact_js_1.contactRouter);
-app.use('/api/upi', upi_js_1.upiRouter);
-// Health check endpoint
-app.get('/api/health', (req, res) => {
+// API Routes - Dual-path mounting (supports both direct /api/* and Vercel stripped rewrite /*)
+const routeBindings = [
+    ['/auth', auth_js_1.authRouter],
+    ['/categories', categories_js_1.categoriesRouter],
+    ['/products', products_js_1.productsRouter],
+    ['/orders', orders_js_1.ordersRouter],
+    ['/cart', cart_js_1.cartRouter],
+    ['/wishlist', wishlist_js_1.wishlistRouter],
+    ['/coupons', coupons_js_1.couponsRouter],
+    ['/reviews', reviews_js_1.reviewsRouter],
+    ['/banners', banners_js_1.bannersRouter],
+    ['/settings', settings_js_1.settingsRouter],
+    ['/upload', upload_js_1.uploadRouter],
+    ['/contact', contact_js_1.contactRouter],
+    ['/upi', upi_js_1.upiRouter],
+];
+routeBindings.forEach(([prefix, router]) => {
+    app.use(`/api${prefix}`, router);
+    app.use(prefix, router);
+});
+// Health check endpoint on both /api/health and /health
+const healthHandler = (_req, res) => {
     res.json({
         status: 'ok',
         store: config_js_1.config.storeName,
@@ -82,6 +90,31 @@ app.get('/api/health', (req, res) => {
         currency: config_js_1.config.currency,
         timestamp: new Date().toISOString()
     });
+};
+app.get('/api/health', healthHandler);
+app.get('/health', healthHandler);
+// Server-Sent Events (SSE) for Real-Time Live Catalog Sync
+const eventsHandler = (req, res) => {
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*'
+    });
+    if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+    }
+    const clientId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    events_js_1.eventBroadcaster.addClient(clientId, res);
+    req.on('close', () => {
+        events_js_1.eventBroadcaster.removeClient(clientId);
+    });
+};
+app.get('/api/events', eventsHandler);
+app.get('/events', eventsHandler);
+// OpenAPI specification endpoint
+app.get(['/api/openapi.json', '/openapi.json', '/api/docs.json'], (_req, res) => {
+    res.json(openapi_js_1.openApiSpec);
 });
 // Production: Serve React client build if present
 const possibleDistPaths = [
@@ -119,7 +152,11 @@ app.use((err, req, res, next) => {
         error: err.message || 'Internal Server Error'
     });
 });
-if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.VERCEL_ENV) {
+if (!process.env.VERCEL &&
+    !process.env.AWS_LAMBDA_FUNCTION_NAME &&
+    !process.env.VERCEL_ENV &&
+    process.env.NODE_ENV !== 'test' &&
+    !process.env.VITEST) {
     app.listen(config_js_1.config.port, () => {
         console.log(`====================================================`);
         console.log(`🚀 VK Technology Backend API running on port ${config_js_1.config.port}`);
@@ -128,12 +165,5 @@ if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env
         console.log(`💳 Currency: ${config_js_1.config.currencySymbol} (${config_js_1.config.currency})`);
         console.log(`====================================================`);
     });
-}
-// Support both CommonJS (module.exports = app) for Vercel Serverless Function entrypoints
-// and ES Module (export default app)
-// @ts-ignore
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = app;
-    module.exports.default = app;
 }
 exports.default = app;

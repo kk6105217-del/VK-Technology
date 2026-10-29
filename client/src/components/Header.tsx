@@ -14,7 +14,9 @@ import {
   X,
   PhoneCall,
   Mail,
-  Menu
+  Menu,
+  History,
+  TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -41,8 +43,29 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
   const [userPincode, setUserPincode] = useState(() => localStorage.getItem('vk_user_pincode') || '500001');
   const [pincodeInput, setPincodeInput] = useState(userPincode);
   const [locationName, setLocationName] = useState(() => localStorage.getItem('vk_user_location') || 'India');
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('vk_recent_searches');
+      return stored ? JSON.parse(stored) : ['Arduino UNO', 'ESP32 WiFi', 'LiPo Battery', 'Robotics Motors'];
+    } catch {
+      return ['Arduino UNO', 'ESP32 WiFi', 'LiPo Battery', 'Robotics Motors'];
+    }
+  });
+
+  const popularKeywords = [
+    'Arduino UNO R4 WiFi',
+    'ESP32 WROOM-32 Module',
+    'Orange 3S LiPo Battery',
+    'L298N Dual Motor Driver',
+    'SG90 Micro Servo 9g',
+    'Raspberry Pi 4 Model B',
+    '120-Piece Dupont Jumper Kit',
+    'HC-SR04 Ultrasonic Distance Sensor'
+  ];
 
   const accountRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.categories.getAll()
@@ -60,6 +83,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
       if (accountRef.current && !accountRef.current.contains(event.target as Node)) {
         setIsAccountOpen(false);
       }
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchDropdown(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -74,12 +100,35 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
     if (cat) setSelectedCategory(cat);
   }, [location.search]);
 
+  const executeSearch = (queryText: string, categorySlug: string = selectedCategory) => {
+    const cleanQ = queryText.trim();
+    if (cleanQ) {
+      const updatedRecent = [cleanQ, ...recentSearches.filter(s => s.toLowerCase() !== cleanQ.toLowerCase())].slice(0, 8);
+      setRecentSearches(updatedRecent);
+      try {
+        localStorage.setItem('vk_recent_searches', JSON.stringify(updatedRecent));
+      } catch {}
+    }
+    setShowSearchDropdown(false);
+
+    const params = new URLSearchParams();
+    if (cleanQ) params.append('q', cleanQ);
+    if (categorySlug) params.append('category', categorySlug);
+    navigate(`/products?${params.toString()}`);
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const params = new URLSearchParams();
-    if (searchQuery.trim()) params.append('q', searchQuery.trim());
-    if (selectedCategory) params.append('category', selectedCategory);
-    navigate(`/products?${params.toString()}`);
+    executeSearch(searchQuery);
+  };
+
+  const removeRecentSearch = (e: React.MouseEvent, itemToRemove: string) => {
+    e.stopPropagation();
+    const updated = recentSearches.filter(s => s !== itemToRemove);
+    setRecentSearches(updated);
+    try {
+      localStorage.setItem('vk_recent_searches', JSON.stringify(updated));
+    } catch {}
   };
 
   const handleSavePincode = (e: React.FormEvent) => {
@@ -174,52 +223,132 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
         </button>
 
         {/* Amazon-style Large Search Bar */}
-        <form onSubmit={handleSearch} className="flex-1 max-w-3xl flex items-center">
-          <div className="flex w-full rounded-md overflow-hidden bg-white shadow-inner focus-within:ring-2 focus-within:ring-amber-500">
-            {/* Category dropdown */}
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-2.5 border-r border-gray-300 focus:outline-none cursor-pointer max-w-[130px] sm:max-w-[150px] truncate hidden sm:block"
-            >
-              <option value="">All Categories</option>
-              {(categories ?? []).map((c) => (
-                <option key={c.id} value={c.slug}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+        <div ref={searchRef} className="relative flex-1 max-w-3xl">
+          <form onSubmit={handleSearch} className="flex items-center">
+            <div className="flex w-full rounded-md overflow-hidden bg-white shadow-inner focus-within:ring-2 focus-within:ring-amber-500">
+              {/* Category dropdown */}
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-2.5 border-r border-gray-300 focus:outline-none cursor-pointer max-w-[130px] sm:max-w-[150px] truncate hidden sm:block"
+              >
+                <option value="">All Categories</option>
+                {(categories ?? []).map((c) => (
+                  <option key={c.id} value={c.slug}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
 
-            {/* Input field */}
-            <div className="relative flex-1 flex items-center">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search Arduino, ESP32, sensors, robotics, drone kits..."
-                className="w-full px-3 py-2 text-sm text-gray-900 focus:outline-none"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="p-1 text-gray-400 hover:text-gray-600 mr-1"
-                >
-                  <X size={16} />
-                </button>
-              )}
+              {/* Input field */}
+              <div className="relative flex-1 flex items-center">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowSearchDropdown(true);
+                  }}
+                  onFocus={() => setShowSearchDropdown(true)}
+                  placeholder="Search Arduino, ESP32, sensors, robotics, drone kits..."
+                  className="w-full px-3 py-2 text-sm text-gray-900 focus:outline-none"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setShowSearchDropdown(true);
+                    }}
+                    className="p-1 text-gray-400 hover:text-gray-600 mr-1"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
+              {/* Submit button */}
+              <button
+                type="submit"
+                className="bg-amber-400 hover:bg-amber-500 text-gray-900 px-4 sm:px-5 flex items-center justify-center transition-colors font-medium shrink-0"
+                aria-label="Search Products"
+              >
+                <Search size={20} className="text-gray-900" />
+              </button>
             </div>
+          </form>
 
-            {/* Submit button */}
-            <button
-              type="submit"
-              className="bg-amber-400 hover:bg-amber-500 text-gray-900 px-4 sm:px-5 flex items-center justify-center transition-colors font-medium"
-              aria-label="Search Products"
-            >
-              <Search size={20} className="text-gray-900" />
-            </button>
-          </div>
-        </form>
+          {/* Search Suggestions & Recent Searches Dropdown */}
+          {showSearchDropdown && (
+            <div className="absolute left-0 right-0 top-full mt-1 bg-white text-gray-900 rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden text-sm">
+              {recentSearches.length > 0 && (
+                <div className="p-2 border-b border-gray-100">
+                  <div className="flex items-center justify-between px-2 py-1 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                    <span className="flex items-center space-x-1">
+                      <History size={12} className="text-amber-500" />
+                      <span>Recent Searches</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRecentSearches([]);
+                        localStorage.removeItem('vk_recent_searches');
+                      }}
+                      className="text-gray-400 hover:text-red-500 text-[10px] lowercase transition"
+                    >
+                      clear all
+                    </button>
+                  </div>
+                  <div className="space-y-0.5 mt-1">
+                    {recentSearches.map((s) => (
+                      <div
+                        key={s}
+                        onClick={() => executeSearch(s)}
+                        className="flex items-center justify-between px-3 py-1.5 hover:bg-amber-50 rounded cursor-pointer group transition"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <History size={14} className="text-gray-400 group-hover:text-amber-600" />
+                          <span className="font-medium text-gray-800">{s}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => removeRecentSearch(e, s)}
+                          className="text-gray-300 hover:text-gray-600 p-1 opacity-0 group-hover:opacity-100 transition"
+                          title="Remove from history"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Popular / Trending Suggestions */}
+              <div className="p-2 bg-gray-50/50">
+                <div className="px-2 py-1 text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center space-x-1">
+                  <TrendingUp size={12} className="text-amber-500" />
+                  <span>Trending in Electronics & DIY</span>
+                </div>
+                <div className="space-y-0.5 mt-1">
+                  {popularKeywords
+                    .filter((k) => !searchQuery || k.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .slice(0, 5)
+                    .map((kw) => (
+                      <div
+                        key={kw}
+                        onClick={() => executeSearch(kw)}
+                        className="flex items-center space-x-2 px-3 py-1.5 hover:bg-amber-100/60 rounded cursor-pointer transition text-gray-700"
+                      >
+                        <Search size={14} className="text-amber-600" />
+                        <span>{kw}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Right Section Actions */}
         <div className="flex items-center space-x-1 sm:space-x-3 text-sm">

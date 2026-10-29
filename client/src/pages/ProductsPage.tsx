@@ -13,6 +13,7 @@ import { ProductCard } from '../components/ProductCard';
 import { StarRating } from '../components/StarRating';
 import { api } from '../services/api';
 import { Product, Category } from '../types';
+import { useCatalogSync } from '../hooks/useCatalogSync';
 
 interface ProductsPageProps {
   fixedCategorySlug?: string;
@@ -98,6 +99,20 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ fixedCategorySlug, c
       setIsLoading(false);
     }
   };
+
+  // Real-time Live Catalog Synchronization
+  useCatalogSync(() => {
+    fetchProducts({
+      q: searchQuery,
+      category: selectedCategory,
+      brand: selectedBrand,
+      min_price: minPrice ? parseFloat(minPrice) : undefined,
+      max_price: maxPrice ? parseFloat(maxPrice) : undefined,
+      in_stock: inStockOnly,
+      rating: selectedRating ? parseFloat(selectedRating) : undefined,
+      sort: sortBy
+    });
+  }, [searchQuery, selectedCategory, selectedBrand, minPrice, maxPrice, inStockOnly, selectedRating, sortBy]);
 
   const applyFilters = (updates: Record<string, string | boolean | undefined>) => {
     const params = new URLSearchParams(location.search);

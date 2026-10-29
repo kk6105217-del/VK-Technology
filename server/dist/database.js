@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.db = void 0;
 exports.initDatabase = initDatabase;
+const os_1 = __importDefault(require("os"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
@@ -34,28 +35,23 @@ let dbInstance = null;
 if (DatabaseSyncClass) {
     try {
         const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL_ENV);
-        if (isVercel) {
-            dbInstance = new DatabaseSyncClass(':memory:');
-        }
-        else {
-            const dataDir = path_1.default.resolve(process.cwd(), 'data');
-            try {
-                if (!fs_1.default.existsSync(dataDir)) {
-                    fs_1.default.mkdirSync(dataDir, { recursive: true });
-                }
+        const dataDir = isVercel ? os_1.default.tmpdir() : path_1.default.resolve(process.cwd(), 'data');
+        try {
+            if (!fs_1.default.existsSync(dataDir)) {
+                fs_1.default.mkdirSync(dataDir, { recursive: true });
             }
-            catch (err) { }
-            const dbPath = path_1.default.join(dataDir, 'vktechnology.db');
-            dbInstance = new DatabaseSyncClass(dbPath);
-            try {
-                dbInstance.exec('PRAGMA journal_mode = WAL;');
-                dbInstance.exec('PRAGMA foreign_keys = ON;');
-            }
-            catch (e) { }
         }
+        catch (err) { }
+        const dbPath = path_1.default.join(dataDir, 'vktechnology.db');
+        dbInstance = new DatabaseSyncClass(dbPath);
+        try {
+            dbInstance.exec('PRAGMA journal_mode = WAL;');
+            dbInstance.exec('PRAGMA foreign_keys = ON;');
+        }
+        catch (e) { }
     }
     catch (err) {
-        console.warn('[DB] Could not open database, attempting :memory:', err);
+        console.warn('[DB] Could not open database file, attempting :memory:', err);
         try {
             dbInstance = new DatabaseSyncClass(':memory:');
         }

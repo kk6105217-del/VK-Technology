@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "prisma:generate": "prisma generate"
   },
   "dependencies": {
+    "@prisma/client": "^7.10.1",
+    "@types/supertest": "^7.2.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -16,7 +20,11 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.10.0",
-    "typescript": "^5.7.3"
+    "prisma": "^8.0.0-rc.28",
+    "supertest": "^7.3.1",
+    "typescript": "^5.7.3",
+    "vitest": "^5.0.5",
+    "zod": "^4.6.7"
   },
   "engines": {
     "node": ">=22.0.0"

@@ -82,31 +82,45 @@ exports.categoriesRouter.put('/:id', auth_js_1.authenticateToken, auth_js_1.requ
     try {
         const { name, slug, description, icon, image_url, sort_order, is_active } = req.body;
         const catId = req.params.id;
-        database_js_1.db.prepare(`
-      UPDATE categories SET
-        name = ?, slug = ?, description = ?, icon = ?, image_url = ?, sort_order = ?, is_active = ?
-      WHERE id = ?
-    `).run(name, slug, description, icon, image_url, sort_order, is_active, catId);
+        const existing = database_js_1.db.prepare('SELECT id FROM categories WHERE id = ?').get(catId);
+        if (!existing) {
+            database_js_1.db.prepare(`
+        INSERT INTO categories (id, name, slug, description, icon, image_url, sort_order, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(catId, name, slug, description || null, icon || 'Cpu', image_url || null, sort_order || 0, is_active !== undefined ? (is_active ? 1 : 0) : 1);
+        }
+        else {
+            database_js_1.db.prepare(`
+        UPDATE categories SET
+          name = ?, slug = ?, description = ?, icon = ?, image_url = ?, sort_order = ?, is_active = ?
+        WHERE id = ?
+      `).run(name, slug, description || null, icon || 'Cpu', image_url || null, sort_order || 0, is_active !== undefined ? (is_active ? 1 : 0) : 1, catId);
+        }
         res.json({ message: 'Category updated successfully.' });
     }
     catch (error) {
-        res.status(500).json({ error: 'Failed to update category.' });
+        console.error('Update category error:', error);
+        res.status(500).json({ error: error.message || 'Failed to update category.' });
     }
 });
 // Admin: Delete category
 exports.categoriesRouter.delete('/:id', auth_js_1.authenticateToken, auth_js_1.requireAdmin, (req, res) => {
     try {
         const catId = req.params.id;
-        // Check if category has products
-        const prodCount = database_js_1.db.prepare('SELECT COUNT(*) as count FROM products WHERE category_id = ?').get(catId);
-        if (prodCount.count > 0) {
-            res.status(400).json({ error: `Cannot delete category. It currently contains ${prodCount.count} products. Reassign or delete products first.` });
-            return;
+        // Safely reassign any products in this category to an alternative category so FOREIGN KEY constraints never fail
+        try {
+            const fallbackCat = database_js_1.db.prepare('SELECT id FROM categories WHERE id != ? ORDER BY id ASC LIMIT 1').get(catId);
+            const fallbackId = fallbackCat?.id || 1;
+            database_js_1.db.prepare('UPDATE products SET category_id = ? WHERE category_id = ?').run(fallbackId, catId);
+        }
+        catch (reassignErr) {
+            console.warn('Reassigning products during category delete:', reassignErr);
         }
         database_js_1.db.prepare('DELETE FROM categories WHERE id = ?').run(catId);
         res.json({ message: 'Category deleted successfully.' });
     }
     catch (error) {
-        res.status(500).json({ error: 'Failed to delete category.' });
+        console.error('Delete category error:', error);
+        res.status(500).json({ error: error.message || 'Failed to delete category.' });
     }
 });

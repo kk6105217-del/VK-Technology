@@ -23,6 +23,7 @@ import {
   removeLocalCartItem,
   clearLocalCart
 } from '../data/fallbackData';
+import { realtimeSync } from './realtime';
 
 const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
 
@@ -474,43 +475,16 @@ export const api = {
           pagination: { total: number; page: number; limit: number; totalPages: number };
         }>(`/products?${query.toString()}`);
 
-        const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
-        const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_products') || '[]');
-
-        if (Array.isArray(res?.products) && res.products.length > 0) {
-          const combined = [...custom, ...res.products.filter(sp => !custom.some(cp => cp.id === sp.id))]
-            .filter(p => !deleted.includes(Number(p.id)));
-          return {
-            products: combined,
-            pagination: { ...res.pagination, total: combined.length }
-          };
+        if (Array.isArray(res?.products)) {
+          return res;
         }
-        const fallback = filterFallbackProducts(params);
-        const filteredFallback = fallback.products
-          .filter(fp => !custom.some(cp => cp.id === fp.id))
-          .filter(p => !deleted.includes(Number(p.id)));
-        const combinedFallback = [...custom.filter(p => !deleted.includes(Number(p.id))), ...filteredFallback];
-        return {
-          products: combinedFallback,
-          pagination: { ...fallback.pagination, total: combinedFallback.length }
-        };
+        return filterFallbackProducts(params);
       } catch (err) {
-        console.warn('API /products unavailable, falling back to local products:', err);
-        const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
-        const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_products') || '[]');
-        const fallback = filterFallbackProducts(params);
-        const filteredFallback = fallback.products
-          .filter(fp => !custom.some(cp => cp.id === fp.id))
-          .filter(p => !deleted.includes(Number(p.id)));
-        const combinedFallback = [...custom.filter(p => !deleted.includes(Number(p.id))), ...filteredFallback];
-        return {
-          products: combinedFallback,
-          pagination: { ...fallback.pagination, total: combinedFallback.length }
-        };
+        console.warn('API /products unavailable, using fallback data:', err);
+        return filterFallbackProducts(params);
       }
     },
     getAdminAll: async (params: { search?: string; category?: number | string; status?: string } = {}) => {
-      let serverProducts: Product[] = [];
       try {
         const query = new URLSearchParams();
         if (params.search) query.append('search', params.search);
@@ -518,254 +492,89 @@ export const api = {
         if (params.status) query.append('status', params.status);
         const res = await request<{ products: Product[] }>(`/products/admin/all?${query.toString()}`);
         if (Array.isArray(res?.products)) {
-          serverProducts = res.products;
+          return res;
         }
+        return { products: FALLBACK_PRODUCTS };
       } catch (err) {
-        console.warn('API /products/admin/all unavailable, falling back:', err);
+        console.warn('API /products/admin/all unavailable, using fallback:', err);
+        let all = [...FALLBACK_PRODUCTS];
+        if (params.search) {
+          const s = params.search.toLowerCase();
+          all = all.filter(p => p.name.toLowerCase().includes(s) || p.sku.toLowerCase().includes(s));
+        }
+        if (params.category) {
+          all = all.filter(p => p.category_id === Number(params.category));
+        }
+        if (params.status === 'active') all = all.filter(p => p.is_active);
+        if (params.status === 'inactive') all = all.filter(p => !p.is_active);
+        return { products: all };
       }
-
-      const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
-      const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_products') || '[]');
-
-      let all = serverProducts.length > 0 
-        ? [...custom, ...serverProducts.filter(sp => !custom.some(cp => cp.id === sp.id))]
-        : [...custom, ...FALLBACK_PRODUCTS.filter(fp => !custom.some(cp => cp.id === fp.id))];
-
-      all = all.filter(p => !deleted.includes(Number(p.id)));
-
-      if (params.search) {
-        const s = params.search.toLowerCase();
-        all = all.filter(p => p.name.toLowerCase().includes(s) || p.sku.toLowerCase().includes(s));
-      }
-      if (params.category) {
-        all = all.filter(p => p.category_id === Number(params.category));
-      }
-      if (params.status === 'active') all = all.filter(p => p.is_active);
-      if (params.status === 'inactive') all = all.filter(p => !p.is_active);
-      return { products: all };
     },
     getBySlug: async (slug: string) => {
-      const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_products') || '[]');
-      const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
-      const customFound = custom.find(p => p.slug === slug);
-      if (customFound) {
-        if (deleted.includes(Number(customFound.id))) throw new Error('Product not found');
-        return { product: customFound };
-      }
-
       try {
         const res = await request<{ product: Product }>(`/products/${slug}`);
         if (res?.product) {
-          if (deleted.includes(Number(res.product.id))) throw new Error('Product not found');
-          const override = custom.find(cp => cp.id === res.product.id);
-          return { product: override || res.product };
+          return { product: res.product };
         }
         throw new Error('Product not found');
       } catch (err) {
-        const found = FALLBACK_PRODUCTS.find(p => p.slug === slug);
+        const found = FALLBACK_PRODUCTS.find(p => p.slug === slug || String(p.id) === slug);
         if (found) {
-          if (deleted.includes(Number(found.id))) throw new Error('Product not found');
-          const customOverride = custom.find(cp => cp.id === found.id);
-          return { product: customOverride || found };
+          return { product: found };
         }
         throw err;
       }
     },
     create: async (product: any) => {
-      let newId = Date.now();
+      const res = await request<{ message: string; productId: number }>('/products', {
+        method: 'POST',
+        body: JSON.stringify(product)
+      });
+      // Broadcast live event across all windows and devices
       try {
-        const res = await request<{ message: string; productId: number }>('/products', {
-          method: 'POST',
-          body: JSON.stringify(product)
-        });
-        if (res?.productId) {
-          newId = res.productId;
-        }
-      } catch (err) {
-        console.warn('Server create product error, storing locally:', err);
-      }
-
-      // Always save to custom products in localStorage so it immediately renders in admin and storefront
-      const newProduct: Product = {
-        id: newId,
-        name: product.name,
-        slug: (product.slug || product.name).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'),
-        sku: product.sku || `VK-${Date.now().toString().slice(-4)}`,
-        category_id: Number(product.category_id || 1),
-        subcategory: product.subcategory,
-        short_description: product.short_description,
-        description: product.description || product.name,
-        regular_price: Number(product.regular_price),
-        discounted_price: product.discounted_price ? Number(product.discounted_price) : null,
-        stock_quantity: Number(product.stock_quantity || 0),
-        brand: product.brand || 'VK Technology',
-        compatibility: product.compatibility || 'Arduino / ESP32',
-        shipping_weight_grams: Number(product.shipping_weight_grams || 250),
-        estimated_dispatch_days: Number(product.estimated_dispatch_days || 1),
-        warranty_info: product.warranty_info || '6 Months Warranty',
-        is_featured: !!product.is_featured,
-        is_active: product.is_active !== undefined ? !!product.is_active : true,
-        rating_avg: 5.0,
-        rating_count: 1,
-        view_count: 0,
-        primary_image: product.images?.[0] || product.primary_image || '/logo.png',
-        images: (product.images || []).map((img: string, idx: number) => ({
-          id: Date.now() + idx,
-          product_id: newId,
-          image_url: img,
-          is_primary: idx === 0,
-          sort_order: idx
-        })),
-        specifications: product.specifications || {},
-        features: product.features || [],
-        package_contents: product.package_contents || [],
-        created_at: new Date().toISOString()
-      };
-
-      const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
-      custom.unshift(newProduct);
-      localStorage.setItem('vk_custom_products', JSON.stringify(custom));
-
-      return { message: 'Product created successfully.', productId: newId };
+        realtimeSync.notify('PRODUCT_CREATED', { productId: res?.productId });
+      } catch {}
+      return res;
     },
     update: async (id: number, product: any) => {
+      const res = await request<{ message: string }>(`/products/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(product)
+      });
+      // Broadcast live event across all windows and devices
       try {
-        await request<{ message: string }>(`/products/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(product)
-        });
-      } catch (err) {
-        console.warn('Server product update failed, updating locally:', err);
-      }
-
-      const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
-      const idx = custom.findIndex(p => p.id === id);
-
-      let imagesArray: any[] | undefined = undefined;
-      let primaryImg: string | undefined = product.primary_image;
-
-      if (Array.isArray(product.images) && product.images.length > 0) {
-        imagesArray = product.images.map((img: any, i: number) => {
-          const u = typeof img === 'string' ? img : (img.image_url || img.url || '');
-          return {
-            id: Date.now() + i,
-            product_id: id,
-            image_url: u,
-            is_primary: i === 0,
-            sort_order: i
-          };
-        });
-        if (!primaryImg && imagesArray && imagesArray[0]) {
-          primaryImg = imagesArray[0].image_url;
-        }
-      } else if (primaryImg) {
-        imagesArray = [{
-          id: Date.now(),
-          product_id: id,
-          image_url: primaryImg,
-          is_primary: true,
-          sort_order: 0
-        }];
-      }
-
-      const regPrice = Number(product.regular_price);
-      const discPrice = (product.discounted_price !== undefined && product.discounted_price !== null && product.discounted_price !== '') 
-        ? Number(product.discounted_price) 
-        : null;
-
-      if (idx !== -1) {
-        custom[idx] = {
-          ...custom[idx],
-          ...product,
-          regular_price: !isNaN(regPrice) ? regPrice : custom[idx].regular_price,
-          discounted_price: discPrice,
-          ...(primaryImg ? { primary_image: primaryImg } : {}),
-          ...(imagesArray ? { images: imagesArray } : {})
-        };
-      } else {
-        const fallbackItem = FALLBACK_PRODUCTS.find(p => p.id === id);
-        if (fallbackItem) {
-          const updatedItem: Product = {
-            ...fallbackItem,
-            ...product,
-            regular_price: !isNaN(regPrice) ? regPrice : fallbackItem.regular_price,
-            discounted_price: discPrice,
-            primary_image: primaryImg || fallbackItem.primary_image,
-            images: imagesArray || fallbackItem.images
-          };
-          custom.unshift(updatedItem);
-        } else {
-          custom.unshift({
-            id,
-            name: product.name || 'Product',
-            slug: product.slug || `product-${id}`,
-            sku: product.sku || `VK-${id}`,
-            category_id: Number(product.category_id || 1),
-            description: product.description || '',
-            regular_price: !isNaN(regPrice) ? regPrice : 0,
-            discounted_price: discPrice,
-            stock_quantity: Number(product.stock_quantity || 0),
-            primary_image: primaryImg || '/logo.png',
-            images: imagesArray || [],
-            ...product
-          });
-        }
-      }
-      localStorage.setItem('vk_custom_products', JSON.stringify(custom));
-      return { message: 'Product updated successfully.' };
+        realtimeSync.notify('PRODUCT_UPDATED', { id, ...product });
+      } catch {}
+      return res;
     },
     updateStock: async (id: number, stock_quantity: number) => {
+      const res = await request<{ message: string }>(`/products/${id}/stock`, {
+        method: 'PATCH',
+        body: JSON.stringify({ stock_quantity })
+      });
       try {
-        await request<{ message: string }>(`/products/${id}/stock`, {
-          method: 'PATCH',
-          body: JSON.stringify({ stock_quantity })
-        });
-      } catch (err) {}
-
-      const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
-      const idx = custom.findIndex(p => p.id === id);
-      if (idx !== -1) {
-        custom[idx].stock_quantity = stock_quantity;
-        localStorage.setItem('vk_custom_products', JSON.stringify(custom));
-      }
-      return { message: 'Stock updated successfully.' };
+        realtimeSync.notify('STOCK_CHANGED', { id, stock_quantity });
+      } catch {}
+      return res;
     },
     toggleStatus: async (id: number, is_active: boolean) => {
+      const res = await request<{ message: string }>(`/products/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active })
+      });
       try {
-        await request<{ message: string }>(`/products/${id}/status`, {
-          method: 'PATCH',
-          body: JSON.stringify({ is_active })
-        });
-      } catch (err) {}
-
-      const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
-      const idx = custom.findIndex(p => p.id === id);
-      if (idx !== -1) {
-        custom[idx].is_active = is_active;
-        localStorage.setItem('vk_custom_products', JSON.stringify(custom));
-      }
-      return { message: 'Status updated successfully.' };
+        realtimeSync.notify('PRODUCT_UPDATED', { id, is_active });
+      } catch {}
+      return res;
     },
     delete: async (id: number) => {
+      const res = await request<{ message: string }>(`/products/${id}`, {
+        method: 'DELETE'
+      });
       try {
-        await request<{ message: string }>(`/products/${id}`, {
-          method: 'DELETE'
-        });
-      } catch (err) {
-        console.warn('Server product delete failed or offline:', err);
-      }
-
-      // Track deleted product ID so fallback catalog items also disappear permanently
-      const deleted: number[] = JSON.parse(localStorage.getItem('vk_deleted_products') || '[]');
-      if (!deleted.includes(Number(id))) {
-        deleted.push(Number(id));
-        localStorage.setItem('vk_deleted_products', JSON.stringify(deleted));
-      }
-
-      const custom: Product[] = JSON.parse(localStorage.getItem('vk_custom_products') || '[]');
-      const filtered = custom.filter(p => Number(p.id) !== Number(id));
-      localStorage.setItem('vk_custom_products', JSON.stringify(filtered));
-      return { message: 'Product deleted successfully.' };
+        realtimeSync.notify('PRODUCT_DELETED', { id });
+      } catch {}
+      return res;
     },
   },
 

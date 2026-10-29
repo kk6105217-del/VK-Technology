@@ -24,6 +24,7 @@ import { Product, Review } from '../types';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
+import { useCatalogSync } from '../hooks/useCatalogSync';
 
 export const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -49,10 +50,8 @@ export const ProductDetailPage: React.FC = () => {
   const [reviewSuccessMsg, setReviewSuccessMsg] = useState('');
   const [reviewErrorMsg, setReviewErrorMsg] = useState('');
 
-  useEffect(() => {
+  const loadProduct = () => {
     if (!slug) return;
-
-    setIsLoading(true);
     api.products.getBySlug(slug)
       .then(res => {
         const prod = res.product;
@@ -63,7 +62,6 @@ export const ProductDetailPage: React.FC = () => {
           ? (prod.images.find((i: any) => i?.is_primary)?.image_url || (typeof prod.images[0] === 'string' ? prod.images[0] : prod.images[0]?.image_url) || prod.primary_image || '')
           : (prod.primary_image || '');
         setSelectedImage(prim);
-        setQuantity(1);
 
         // Add to recently viewed in localStorage
         try {
@@ -80,6 +78,17 @@ export const ProductDetailPage: React.FC = () => {
       .finally(() => {
         setIsLoading(false);
       });
+  };
+
+  useEffect(() => {
+    setIsLoading(true);
+    setQuantity(1);
+    loadProduct();
+  }, [slug]);
+
+  // Real-time live synchronization for this product
+  useCatalogSync(() => {
+    loadProduct();
   }, [slug]);
 
   if (isLoading) {

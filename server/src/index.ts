@@ -19,6 +19,8 @@ import { settingsRouter } from './routes/settings.js';
 import { uploadRouter } from './routes/upload.js';
 import { contactRouter } from './routes/contact.js';
 import { upiRouter } from './routes/upi.js';
+import { eventBroadcaster } from './services/events.js';
+import { openApiSpec } from './openapi.js';
 
 const app = express();
 
@@ -57,23 +59,30 @@ app.get('/upi-qr-code.jpg', (req, res) => {
   res.status(404).send('Not Found');
 });
 
-// API Routes
-app.use('/api/auth', authRouter);
-app.use('/api/categories', categoriesRouter);
-app.use('/api/products', productsRouter);
-app.use('/api/orders', ordersRouter);
-app.use('/api/cart', cartRouter);
-app.use('/api/wishlist', wishlistRouter);
-app.use('/api/coupons', couponsRouter);
-app.use('/api/reviews', reviewsRouter);
-app.use('/api/banners', bannersRouter);
-app.use('/api/settings', settingsRouter);
-app.use('/api/upload', uploadRouter);
-app.use('/api/contact', contactRouter);
-app.use('/api/upi', upiRouter);
+// API Routes - Dual-path mounting (supports both direct /api/* and Vercel stripped rewrite /*)
+const routeBindings = [
+  ['/auth', authRouter],
+  ['/categories', categoriesRouter],
+  ['/products', productsRouter],
+  ['/orders', ordersRouter],
+  ['/cart', cartRouter],
+  ['/wishlist', wishlistRouter],
+  ['/coupons', couponsRouter],
+  ['/reviews', reviewsRouter],
+  ['/banners', bannersRouter],
+  ['/settings', settingsRouter],
+  ['/upload', uploadRouter],
+  ['/contact', contactRouter],
+  ['/upi', upiRouter],
+] as const;
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
+routeBindings.forEach(([prefix, router]) => {
+  app.use(`/api${prefix}`, router);
+  app.use(prefix, router);
+});
+
+// Health check endpoint on both /api/health and /health
+const healthHandler = (_req: express.Request, res: express.Response) => {
   res.json({
     status: 'ok',
     store: config.storeName,
@@ -82,6 +91,35 @@ app.get('/api/health', (req, res) => {
     currency: config.currency,
     timestamp: new Date().toISOString()
   });
+};
+app.get('/api/health', healthHandler);
+app.get('/health', healthHandler);
+
+// Server-Sent Events (SSE) for Real-Time Live Catalog Sync
+const eventsHandler = (req: express.Request, res: express.Response) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  });
+  if (typeof (res as any).flushHeaders === 'function') {
+    (res as any).flushHeaders();
+  }
+
+  const clientId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  eventBroadcaster.addClient(clientId, res);
+
+  req.on('close', () => {
+    eventBroadcaster.removeClient(clientId);
+  });
+};
+app.get('/api/events', eventsHandler);
+app.get('/events', eventsHandler);
+
+// OpenAPI specification endpoint
+app.get(['/api/openapi.json', '/openapi.json', '/api/docs.json'], (_req, res) => {
+  res.json(openApiSpec);
 });
 
 // Production: Serve React client build if present
@@ -122,7 +160,13 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.VERCEL_ENV) {
+if (
+  !process.env.VERCEL &&
+  !process.env.AWS_LAMBDA_FUNCTION_NAME &&
+  !process.env.VERCEL_ENV &&
+  process.env.NODE_ENV !== 'test' &&
+  !process.env.VITEST
+) {
   app.listen(config.port, () => {
     console.log(`====================================================`);
     console.log(`🚀 VK Technology Backend API running on port ${config.port}`);
@@ -131,14 +175,6 @@ if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env
     console.log(`💳 Currency: ${config.currencySymbol} (${config.currency})`);
     console.log(`====================================================`);
   });
-}
-
-// Support both CommonJS (module.exports = app) for Vercel Serverless Function entrypoints
-// and ES Module (export default app)
-// @ts-ignore
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = app;
-  module.exports.default = app;
 }
 
 export default app;
