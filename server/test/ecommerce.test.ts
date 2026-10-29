@@ -59,7 +59,30 @@ describe('VK Technology Full-Stack E-Commerce Platform Test Suite', () => {
       });
 
     expect([200, 201]).toContain(regRes.status);
+    expect(regRes.body.token).toBeDefined();
+    expect(regRes.body.user).toBeDefined();
 
+    // Prevent duplicate registrations
+    const duplicateRes = await request(app)
+      .post('/api/auth/register')
+      .send({
+        full_name: 'Aditya Maker Clone',
+        email: customerEmail,
+        password: 'Password123!'
+      });
+    expect(duplicateRes.status).toBe(409);
+
+    // Reject weak password
+    const weakPassRes = await request(app)
+      .post('/api/auth/register')
+      .send({
+        full_name: 'Weak Pass User',
+        email: `weak_${Date.now()}@example.com`,
+        password: '123'
+      });
+    expect(weakPassRes.status).toBe(400);
+
+    // Login with valid credentials
     const loginRes = await request(app)
       .post('/api/auth/login')
       .send({
@@ -70,6 +93,22 @@ describe('VK Technology Full-Stack E-Commerce Platform Test Suite', () => {
     expect(loginRes.status).toBe(200);
     expect(loginRes.body.token).toBeDefined();
     customerToken = loginRes.body.token;
+
+    // Reject wrong password
+    const wrongPassRes = await request(app)
+      .post('/api/auth/login')
+      .send({
+        email: customerEmail,
+        password: 'WrongPassword'
+      });
+    expect(wrongPassRes.status).toBe(401);
+
+    // Fetch user profile via /me
+    const meRes = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${customerToken}`);
+    expect(meRes.status).toBe(200);
+    expect(meRes.body.user.email).toBe(customerEmail);
   });
 
   // -------------------------------------------------------------

@@ -112,7 +112,7 @@ export const CheckoutPage: React.FC = () => {
       api.auth.getAddresses().then(res => {
         setSavedAddresses(res.addresses || []);
         if (res.addresses && res.addresses.length > 0) {
-          const defaultAddr = res.addresses.find(a => a.is_default) || res.addresses[0];
+          const defaultAddr = res.addresses.find((a: any) => a.is_default) || res.addresses[0];
           applyAddress(defaultAddr);
         }
       }).catch(() => {});

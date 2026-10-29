@@ -45,7 +45,12 @@ if (DatabaseSyncClass) {
         const dbPath = path_1.default.join(dataDir, 'vktechnology.db');
         dbInstance = new DatabaseSyncClass(dbPath);
         try {
-            dbInstance.exec('PRAGMA journal_mode = WAL;');
+            if (isVercel) {
+                dbInstance.exec('PRAGMA journal_mode = DELETE;');
+            }
+            else {
+                dbInstance.exec('PRAGMA journal_mode = WAL;');
+            }
             dbInstance.exec('PRAGMA foreign_keys = ON;');
         }
         catch (e) { }

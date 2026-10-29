@@ -71,6 +71,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthToken(null);
     setTokenState(null);
     setUser(null);
+    localStorage.removeItem('vk_auth_token');
+    localStorage.removeItem('vk_current_user');
+    localStorage.removeItem('vk_customer_user');
   };
 
   const isAdmin = !!(user && user.role === 'admin');

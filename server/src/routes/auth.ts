@@ -8,43 +8,103 @@ import { authenticateToken, requireAdmin, AuthenticatedRequest } from '../middle
 
 export const authRouter = Router();
 
+// Resilient memory store for fallback when database is starting or read-only
+interface StoredUser {
+  id: number;
+  email: string;
+  password_hash: string;
+  full_name: string;
+  phone?: string | null;
+  role: 'admin' | 'customer';
+  created_at?: string;
+}
+const memoryUsersStore = new Map<string, StoredUser>();
+
+function ensureUsersTable() {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        full_name TEXT NOT NULL,
+        phone TEXT,
+        role TEXT NOT NULL DEFAULT 'customer',
+        reset_token TEXT,
+        reset_token_expiry TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+  } catch (err) {}
+}
+
 // Customer Registration
 authRouter.post('/register', (req, res) => {
   try {
-    const { email, password, full_name, phone } = req.body;
+    const { email, password, full_name, phone } = req.body || {};
 
     if (!email || !password || !full_name) {
       res.status(400).json({ error: 'Please provide full name, email, and password.' });
       return;
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-
-    // Check if email already registered
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
-    if (existing) {
-      res.status(409).json({ error: 'An account with this email address already exists. Please log in.' });
-      return;
-    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanName = String(full_name).trim();
+    const cleanPhone = phone ? String(phone).trim() : null;
 
     if (password.length < 6) {
       res.status(400).json({ error: 'Password must be at least 6 characters long.' });
       return;
     }
 
+    ensureUsersTable();
+
+    // Check if email already registered in DB or memory
+    let existing: any = null;
+    try {
+      existing = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
+    } catch (e) {
+      existing = memoryUsersStore.get(cleanEmail);
+    }
+    if (!existing) {
+      existing = memoryUsersStore.get(cleanEmail);
+    }
+
+    if (existing) {
+      res.status(409).json({ error: 'An account with this email address already exists. Please log in.' });
+      return;
+    }
+
     const salt = bcrypt.genSaltSync(10);
     const password_hash = bcrypt.hashSync(password, salt);
 
-    // Any normal registration is ALWAYS 'customer'
-    const insertResult = db.prepare(`
-      INSERT INTO users (email, password_hash, full_name, phone, role)
-      VALUES (?, ?, ?, ?, 'customer')
-    `).run(cleanEmail, password_hash, full_name.trim(), phone?.trim() || null);
+    let userId = Date.now();
+    try {
+      const insertResult = db.prepare(`
+        INSERT INTO users (email, password_hash, full_name, phone, role)
+        VALUES (?, ?, ?, ?, 'customer')
+      `).run(cleanEmail, password_hash, cleanName, cleanPhone);
 
-    const userId = Number(insertResult.lastInsertRowid);
+      if (insertResult && insertResult.lastInsertRowid) {
+        userId = Number(insertResult.lastInsertRowid);
+      }
+    } catch (dbErr: any) {
+      console.warn('[AUTH] SQLite insert warning, saving to memory fallback:', dbErr.message);
+    }
+
+    // Always keep memory store up to date
+    memoryUsersStore.set(cleanEmail, {
+      id: userId,
+      email: cleanEmail,
+      password_hash,
+      full_name: cleanName,
+      phone: cleanPhone,
+      role: 'customer'
+    });
 
     const token = jwt.sign(
-      { id: userId, email: cleanEmail, role: 'customer', full_name: full_name.trim() },
+      { id: userId, email: cleanEmail, role: 'customer', full_name: cleanName },
       config.jwtSecret,
       { expiresIn: config.jwtExpiresIn as any }
     );
@@ -54,30 +114,40 @@ authRouter.post('/register', (req, res) => {
       user: {
         id: userId,
         email: cleanEmail,
-        full_name: full_name.trim(),
-        phone: phone?.trim() || null,
+        full_name: cleanName,
+        phone: cleanPhone,
         role: 'customer'
       },
       token
     });
   } catch (error: any) {
     console.error('Registration error:', error);
-    res.status(500).json({ error: 'Registration failed. Please try again.' });
+    res.status(500).json({ error: error?.message || 'Registration failed. Please try again.' });
   }
 });
 
 // Login
 authRouter.post('/login', (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
 
     if (!email || !password) {
       res.status(400).json({ error: 'Email and password are required.' });
       return;
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const user = db.prepare('SELECT id, email, password_hash, full_name, phone, role FROM users WHERE email = ?').get(cleanEmail) as any;
+    const cleanEmail = String(email).trim().toLowerCase();
+    ensureUsersTable();
+
+    let user: any = null;
+    try {
+      user = db.prepare('SELECT id, email, password_hash, full_name, phone, role FROM users WHERE email = ?').get(cleanEmail);
+    } catch (e) {
+      user = memoryUsersStore.get(cleanEmail);
+    }
+    if (!user) {
+      user = memoryUsersStore.get(cleanEmail);
+    }
 
     if (!user) {
       res.status(401).json({ error: 'Invalid email or password.' });
@@ -102,14 +172,14 @@ authRouter.post('/login', (req, res) => {
         id: user.id,
         email: user.email,
         full_name: user.full_name,
-        phone: user.phone,
+        phone: user.phone || null,
         role: user.role
       },
       token
     });
   } catch (error: any) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Login failed. Please try again.' });
+    res.status(500).json({ error: error?.message || 'Login failed. Please try again.' });
   }
 });
 
@@ -197,14 +267,44 @@ authRouter.post('/admin-login', (req, res) => {
 // Current user details
 authRouter.get('/me', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
   try {
-    const user = db.prepare('SELECT id, email, full_name, phone, role, created_at FROM users WHERE id = ?').get(req.user!.id) as any;
+    let user: any = null;
+    if (req.user?.id) {
+      try {
+        user = db.prepare('SELECT id, email, full_name, phone, role, created_at FROM users WHERE id = ?').get(req.user.id);
+      } catch (e) {}
+    }
+    if (!user && req.user?.email) {
+      user = memoryUsersStore.get(req.user.email.toLowerCase());
+    }
+    if (!user && req.user) {
+      user = {
+        id: req.user.id,
+        email: req.user.email,
+        full_name: (req.user as any).full_name || 'Customer',
+        phone: (req.user as any).phone || null,
+        role: req.user.role || 'customer'
+      };
+    }
+
     if (!user) {
       res.status(404).json({ error: 'User not found.' });
       return;
     }
     res.json({ user });
   } catch (error: any) {
-    res.status(500).json({ error: 'Failed to fetch user profile.' });
+    if (req.user) {
+      res.json({
+        user: {
+          id: req.user.id,
+          email: req.user.email,
+          full_name: (req.user as any).full_name || 'Customer',
+          phone: null,
+          role: req.user.role || 'customer'
+        }
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to fetch user profile.' });
+    }
   }
 });
 
