@@ -119,6 +119,18 @@ export const LoginPage: React.FC = () => {
           Create your VK Technology account
         </Link>
       </div>
+
+      {/* Clean Authentication Footer */}
+      <div className="mt-8 text-center text-[11px] text-gray-500 space-x-3">
+        <Link to="/policy/terms-conditions" className="text-vk-blue hover:underline">Conditions of Use</Link>
+        <span className="text-gray-300">|</span>
+        <Link to="/policy/privacy-policy" className="text-vk-blue hover:underline">Privacy Notice</Link>
+        <span className="text-gray-300">|</span>
+        <Link to="/contact" className="text-vk-blue hover:underline">Help</Link>
+      </div>
+      <p className="text-[11px] text-gray-400 mt-2 text-center">
+        © 2026, VK Technology DIY Tech Projects. All rights reserved.
+      </p>
     </div>
   );
 };

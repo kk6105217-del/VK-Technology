@@ -133,8 +133,8 @@ const embeddedIndexHtml = `<!doctype html>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-1wt0GaH1.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CY0ZJ8iy.css">
+    <script type="module" crossorigin src="/assets/index-CeyxK7AU.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-xRfZp55G.css">
   </head>
   <body class="bg-gray-100 text-gray-900 font-sans antialiased selection:bg-amber-400 selection:text-gray-950">
     <div id="root"></div>

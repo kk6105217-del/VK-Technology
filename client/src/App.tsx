@@ -120,6 +120,12 @@ export function App() {
             <WishlistProvider>
               <ScrollToTop />
               <Routes>
+                {/* Standalone Authentication Routes (Clean Amazon-style, no storefront header/footer/admin options) */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+
                 {/* Storefront Layout & Customer Routes */}
                 <Route path="/" element={<StoreLayout />}>
                   <Route index element={<HomePage />} />
@@ -128,12 +134,6 @@ export function App() {
                   <Route path="product/:slug" element={<ProductDetailPage />} />
                   <Route path="cart" element={<CartPage />} />
                   <Route path="checkout" element={<CheckoutPage />} />
-
-                  {/* Authentication Routes */}
-                  <Route path="login" element={<LoginPage />} />
-                  <Route path="register" element={<RegisterPage />} />
-                  <Route path="forgot-password" element={<ForgotPasswordPage />} />
-                  <Route path="reset-password" element={<ResetPasswordPage />} />
 
                   {/* Account & Orders */}
                   <Route path="account" element={<AccountPage />} />

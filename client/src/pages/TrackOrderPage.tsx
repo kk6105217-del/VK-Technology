@@ -92,10 +92,10 @@ export const TrackOrderPage: React.FC = () => {
         <div className="pt-3 border-t border-gray-200 text-center text-xs text-gray-500">
           Need help with your shipment? Email us at{' '}
           <a
-            href="mailto:admin@vktechnology.shop"
+            href="mailto:support@vktechnology.shop"
             className="text-vk-blue font-bold hover:underline"
           >
-            admin@vktechnology.shop
+            support@vktechnology.shop
           </a>{' '}
           or WhatsApp at{' '}
           <a
